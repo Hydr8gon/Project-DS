@@ -22,17 +22,37 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <deque>
 #include <string>
 
 #include "circle.h"
+#include "circle_hole.h"
 #include "cross.h"
+#include "cross_hole.h"
 #include "square.h"
+#include "square_hole.h"
 #include "triangle.h"
+#include "triangle_hole.h"
 
-uint16_t *gfx[4];
-int palIdx[4];
+struct Note
+{
+    uint8_t type;
+    uint8_t x;
+    uint8_t y;
+    uint32_t time;
+};
+
+std::deque<Note> notes;
+
+uint16_t *gfx[8];
+int palIdx[8];
+
+size_t size = 0;
+uint32_t *chart = nullptr;
 
 uint32_t counter = 1;
+uint32_t timer = 0;
+bool finished = false;
 
 const uint8_t paramCounts[0x100] =
 {
@@ -68,6 +88,49 @@ int initObjPal16(const unsigned short *pal)
     return index++;
 }
 
+void updateChart()
+{
+    // Execute chart opcodes
+    while (counter < size && !finished)
+    {
+        switch (chart[counter])
+        {
+            case 0x00: // End
+            {
+                // Indicate the chart has finished executing
+                finished = true;
+                return;
+            }
+
+            case 0x01: // Time
+            {
+                // Stop execution until the target time is reached
+                if (timer < chart[counter + 1])
+                    return;
+                break;
+            }
+
+            case 0x06: // Target
+            {
+                // Add a note to the queue
+                if (chart[counter + 1] < 8) // Buttons and holds
+                {
+                    static Note note;
+                    note.type = chart[counter + 1] & 3;
+                    note.x    = chart[counter + 2] * 256 / 500000 - 16;
+                    note.y    = chart[counter + 3] * 192 / 250000 - 16;
+                    note.time = timer + 200000;
+                    notes.push_back(note);
+                }
+                break;
+            }
+        }
+
+        // Move to the next opcode
+        counter += paramCounts[chart[counter]] + 1;
+    }
+}
+
 void retry()
 {
     printf("Press start to retry.\n");
@@ -80,7 +143,10 @@ void retry()
         if (keysDown() & KEY_START)
         {
             consoleClear();
+            notes.clear();
             counter = 1;
+            timer = 0;
+            finished = false;
             return;
         }
 
@@ -97,10 +163,7 @@ int main()
     videoSetMode(MODE_3_2D);
     vramSetBankA(VRAM_A_MAIN_SPRITE);
     oamInit(&oamMain, SpriteMapping_1D_64, false);
-    BG_PALETTE[0] = 0xFFFF;
-
-    size_t size = 0;
-    uint32_t *chart = nullptr;
+    BG_PALETTE[0] = 0x4210;
 
     if (FILE *file = fopen("chart.dsc", "rb"))
     {
@@ -122,86 +185,91 @@ int main()
     }
 
     // Prepare the graphic tile data
-    gfx[0] = initObjTiles16(triangleTiles, triangleTilesLen, SpriteSize_32x32);
-    gfx[1] = initObjTiles16(circleTiles,   circleTilesLen,   SpriteSize_32x32);
-    gfx[2] = initObjTiles16(crossTiles,    crossTilesLen,    SpriteSize_32x32);
-    gfx[3] = initObjTiles16(squareTiles,   squareTilesLen,   SpriteSize_32x32);
+    gfx[0] = initObjTiles16(triangle_holeTiles, triangle_holeTilesLen, SpriteSize_32x32);
+    gfx[1] = initObjTiles16(circle_holeTiles,   circle_holeTilesLen,   SpriteSize_32x32);
+    gfx[2] = initObjTiles16(cross_holeTiles,    cross_holeTilesLen,    SpriteSize_32x32);
+    gfx[3] = initObjTiles16(square_holeTiles,   square_holeTilesLen,   SpriteSize_32x32);
+    gfx[4] = initObjTiles16(triangleTiles,      triangleTilesLen,      SpriteSize_32x32);
+    gfx[5] = initObjTiles16(circleTiles,        circleTilesLen,        SpriteSize_32x32);
+    gfx[6] = initObjTiles16(crossTiles,         crossTilesLen,         SpriteSize_32x32);
+    gfx[7] = initObjTiles16(squareTiles,        squareTilesLen,        SpriteSize_32x32);
 
     // Prepare the graphic palette data
-    palIdx[0] = initObjPal16(trianglePal);
-    palIdx[1] = initObjPal16(circlePal);
-    palIdx[2] = initObjPal16(crossPal);
-    palIdx[3] = initObjPal16(squarePal);
+    palIdx[0] = initObjPal16(triangle_holePal);
+    palIdx[1] = initObjPal16(circle_holePal);
+    palIdx[2] = initObjPal16(cross_holePal);
+    palIdx[3] = initObjPal16(square_holePal);
+    palIdx[4] = initObjPal16(trianglePal);
+    palIdx[5] = initObjPal16(circlePal);
+    palIdx[6] = initObjPal16(crossPal);
+    palIdx[7] = initObjPal16(squarePal);
 
-    // Execute chart opcodes
-    while (counter < size)
+    while (true)
     {
-        switch (chart[counter])
+        updateChart();
+        oamClear(&oamMain, 0, 0);
+        int sprite = 0;
+
+        if (!notes.empty() && notes[0].time - 50000 < timer)
         {
-            case 0x00: // End
+            scanKeys();
+            uint16_t down = keysDown();
+
+            // Get the current notes that need to be hit
+            size_t count = 0;
+            uint16_t key = 0;
+            for (; count < notes.size() && notes[count].time == notes[0].time; count++)
+                key |= keys[notes[count].type];
+
+            if (down && key)
             {
-                printf("CLEAR!\n");
+                if (down & key)
+                {
+                    // Dequeue notes that are hit
+                    for (size_t i = 0; i < count; i++)
+                        notes.pop_front();
+                }
+                else
+                {
+                    // Fail if the pressed key is wrong
+                    printf("FAILED...\n");
+                    retry();
+                }
+            }
+            else if (notes[0].time + 50000 < timer)
+            {
+                // Fail if a note wasn't hit in time
+                printf("FAILED...\n");
                 retry();
-                break;
             }
-
-            case 0x06: // Target
+            else
             {
-                uint16_t key = 0;
-                uint16_t down = 0;
-                int sprite = 0;
-
-                oamClear(&oamMain, 0, 0);
-
-                while (chart[counter] == 0x06)
+                // Draw buttons for the current notes
+                for (size_t i = 0; i < count; i++)
                 {
-                    uint32_t note = chart[counter + 1];
-                    uint32_t x = chart[counter + 2] * 256 / 500000 - 16;
-                    uint32_t y = chart[counter + 3] * 192 / 250000 - 16;
-
-                    if (note < 8) // Buttons and holds
-                    {
-                        // Add the note to the keypress; it could be a multi-note
-                        key |= keys[note & 3];
-
-                        // Draw the note on the top screen
-                        oamSet(&oamMain, sprite++, x, y, 0, palIdx[note & 3], SpriteSize_32x32,
-                            SpriteColorFormat_16Color, gfx[note & 3], 0, false, false, false, false, false);
-                    }
-
-                    // Move to the next opcode
-                    counter += paramCounts[0x06] + 1;
+                    oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, palIdx[notes[i].type + 4], SpriteSize_32x32,
+                        SpriteColorFormat_16Color, gfx[notes[i].type + 4], 0, false, false, false, false, false);
                 }
-
-                oamUpdate(&oamMain);
-
-                if (key)
-                {
-                    // Wait for a key to be pressed
-                    while (!down)
-                    {
-                        scanKeys();
-                        down = keysDown();
-                        swiWaitForVBlank();
-                    }
-
-                    // Check if the key is correct
-                    if (!(down & key))
-                    {
-                        printf("FAILED...\n");
-                        retry();
-                    }
-                }
-
-                break;
             }
+        }
 
-            default:
-            {
-                // Move to the next opcode
-                counter += paramCounts[chart[counter]] + 1;
-                break;
-            }
+        // Draw holes for all queued notes
+        for (size_t i = 0; i < notes.size(); i++)
+        {
+            oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, palIdx[notes[i].type], SpriteSize_32x32,
+                SpriteColorFormat_16Color, gfx[notes[i].type], 0, false, false, false, false, false);
+        }
+
+        // Move to the next frame
+        oamUpdate(&oamMain);
+        swiWaitForVBlank();
+        timer += 1667;
+
+        // Check the clear condition
+        if (finished && notes.empty())
+        {
+            printf("CLEAR!\n");
+            retry();
         }
     }
 
