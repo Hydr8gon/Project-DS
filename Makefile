@@ -18,8 +18,8 @@ include $(DEVKITARM)/ds_rules
 #---------------------------------------------------------------------------------
 TARGET   := $(shell basename $(CURDIR))
 BUILD    := build
-SOURCES  := source
-INCLUDES := include
+SOURCES  := source libogg/src vorbis/lib
+INCLUDES := include libogg/include vorbis/include vorbis/lib
 DATA     := data
 GRAPHICS := gfx
 
@@ -44,7 +44,7 @@ LDFLAGS   = -specs=ds_arm9.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project (order is important)
 #---------------------------------------------------------------------------------
-LIBS := -lfat -lnds9
+LIBS := -lfat -lmm9 -lnds9
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing

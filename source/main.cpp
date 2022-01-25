@@ -17,13 +17,16 @@
     along with Project DS. If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include <fat.h>
-#include <nds.h>
-
 #include <cstdint>
 #include <cstdio>
 #include <deque>
 #include <string>
+
+#include <fat.h>
+#include <maxmod9.h>
+#include <nds.h>
+
+#include "vorbis/codec.h"
 
 #include "circle.h"
 #include "circle_hole.h"
@@ -44,11 +47,14 @@ struct Note
 
 std::deque<Note> notes;
 
-uint16_t *gfx[8];
-int palIdx[8];
-
 size_t size = 0;
 uint32_t *chart = nullptr;
+
+FILE *song;
+mm_stream stream;
+
+uint16_t *gfx[8];
+int palIdx[8];
 
 uint32_t counter = 1;
 uint32_t timer = 0;
@@ -88,6 +94,13 @@ int initObjPal16(const unsigned short *pal)
     return index++;
 }
 
+mm_word audioCallback(mm_word length, mm_addr dest, mm_stream_formats format)
+{
+    // Load more PCM samples from file
+    fread(dest, sizeof(int16_t), length * 2, song);
+    return length;
+}
+
 void updateChart()
 {
     // Execute chart opcodes
@@ -119,9 +132,16 @@ void updateChart()
                     note.type = chart[counter + 1] & 3;
                     note.x    = chart[counter + 2] * 256 / 500000 - 16;
                     note.y    = chart[counter + 3] * 192 / 250000 - 16;
-                    note.time = timer + 200000;
+                    note.time = timer + 150000;
                     notes.push_back(note);
                 }
+                break;
+            }
+
+            case 0x19: // Music play
+            {
+                // Start the audio stream
+                mmStreamOpen(&stream);
                 break;
             }
         }
@@ -134,16 +154,19 @@ void updateChart()
 void retry()
 {
     printf("Press start to retry.\n");
+    mmStreamClose();
 
-    // Wait until start is pressed to reset the chart
+    // Wait on the retry screen
     while (true)
     {
         scanKeys();
 
+        // Reset the chart when start is pressed
         if (keysDown() & KEY_START)
         {
             consoleClear();
             notes.clear();
+            fseek(song, 0, SEEK_SET);
             counter = 1;
             timer = 0;
             finished = false;
@@ -165,6 +188,7 @@ int main()
     oamInit(&oamMain, SpriteMapping_1D_64, false);
     BG_PALETTE[0] = 0x4210;
 
+    // Attempt to load the chart file
     if (FILE *file = fopen("chart.dsc", "rb"))
     {
         // Load the chart file into memory
@@ -183,6 +207,136 @@ int main()
         while (true)
             swiWaitForVBlank();
     }
+
+    // Attempt to load the converted music file
+    if (!(song = fopen("chart.pcm", "rb")))
+    {
+        // Attempt to load an OGG file for conversion
+        if (FILE *songOgg = fopen("chart.ogg", "rb"))
+        {
+            ogg_sync_state   oy;
+            ogg_stream_state os;
+            ogg_page         og;
+            ogg_packet       op;
+
+            vorbis_info      vi;
+            vorbis_comment   vc;
+            vorbis_dsp_state vd;
+            vorbis_block     vb;
+
+            // Get the file size for progress tracking
+            fseek(songOgg, 0, SEEK_END);
+            size_t sizeOgg = ftell(songOgg);
+            fseek(songOgg, 0, SEEK_SET);
+
+            // Read the first block from the OGG file
+            ogg_sync_init(&oy);
+            char *buffer = ogg_sync_buffer(&oy, 4096);
+            size_t bytes = fread(buffer, sizeof(uint8_t), 4096, songOgg);
+            ogg_sync_wrote(&oy, bytes);
+
+            // Initialize the stream and get the first page
+            ogg_sync_pageout(&oy, &og);
+            ogg_stream_init(&os, ogg_page_serialno(&og));
+            ogg_stream_pagein(&os, &og);
+            ogg_stream_packetout(&os, &op);
+
+            // Initialize the decoder with the initial header
+            vorbis_info_init(&vi);
+            vorbis_comment_init(&vc);
+            vorbis_synthesis_headerin(&vi, &vc, &op);
+            vorbis_synthesis_halfrate(&vi, 1);
+
+            printf("Converting to PCM16...\n");
+            FILE *songPcm = fopen("chart.pcm", "wb");
+
+            int i = 0;
+
+            // Decode until the end of the file is reached
+            while (true)
+            {
+                // Read more blocks from the OGG file and track progress
+                if (!ogg_sync_pageout(&oy, &og))
+                {
+                    buffer = ogg_sync_buffer(&oy, 4096);
+                    bytes = fread(buffer, sizeof(uint8_t), 4096, songOgg);
+                    if (bytes == 0) break;
+                    ogg_sync_wrote(&oy, bytes);
+                    printf("\x1b[1;0H%ld%%\n", ftell(songOgg) * 100 / sizeOgg);
+                    continue;
+                }
+
+                // Get another page
+                ogg_stream_pagein(&os, &og);
+
+                while (ogg_stream_packetout(&os, &op))
+                {
+                    // Get the comment and codebook headers and finish initializing the decoder
+                    if (i < 2)
+                    {
+                        vorbis_synthesis_headerin(&vi, &vc, &op);
+                        if (++i < 2) continue;
+                        vorbis_synthesis_init(&vd, &vi);
+                        vorbis_block_init(&vd, &vb);
+                        break;
+                    }
+
+                    // Decode a packet
+                    vorbis_synthesis(&vb, &op);
+                    vorbis_synthesis_blockin(&vd, &vb);
+
+                    float **pcm;
+
+                    while (int samples = vorbis_synthesis_pcmout(&vd, &pcm))
+                    {
+                        // Convert floats and combine channels to produce stereo PCM16
+                        int16_t convbuffer[2048];
+                        for (int j = 0; j < samples; j++)
+                        {
+                            convbuffer[j * 2 + 0] = (pcm[0][j] + pcm[2][j]) * 32767.0f;
+                            convbuffer[j * 2 + 1] = (pcm[1][j] + pcm[3][j]) * 32767.0f;
+                        }
+
+                        // Write the converted data to file
+                        fwrite(convbuffer, sizeof(int16_t), samples * 2, songPcm);
+                        vorbis_synthesis_read(&vd, samples);
+                    }
+                }
+            }
+
+            fclose(songPcm);
+            fclose(songOgg);
+
+            // Open the file after decoding
+            song = fopen("chart.pcm", "rb");
+            printf("Done!\n");
+            retry();
+        }
+        else
+        {
+            printf("Please provide a file named chart.ogg on the SD card.\n");
+
+            // Do nothing since there's no music to play
+            while (true)
+                swiWaitForVBlank();
+        }
+    }
+
+    // Initialize maxmod without a soundbank
+    mm_ds_system sys;
+    sys.mod_count    = 0;
+    sys.samp_count   = 0;
+    sys.mem_bank     = 0;
+    sys.fifo_channel = FIFO_MAXMOD;
+    mmInit(&sys);
+
+    // Prepare the audio stream
+    stream.sampling_rate = 44100 / 2;
+    stream.buffer_length = 1024;
+    stream.callback      = audioCallback;
+    stream.format        = MM_STREAM_16BIT_STEREO;
+    stream.timer         = MM_TIMER0;
+    stream.manual        = true;
 
     // Prepare the graphic tile data
     gfx[0] = initObjTiles16(triangle_holeTiles, triangle_holeTilesLen, SpriteSize_32x32);
@@ -206,7 +360,10 @@ int main()
 
     while (true)
     {
+        // Update the song and chart
+        mmStreamUpdate();
         updateChart();
+
         oamClear(&oamMain, 0, 0);
         int sprite = 0;
 
