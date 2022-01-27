@@ -17,10 +17,13 @@
     along with Project DS. If not, see <https://www.gnu.org/licenses/>.
 */
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <deque>
+#include <dirent.h>
 #include <string>
+#include <vector>
 
 #include <fat.h>
 #include <maxmod9.h>
@@ -37,6 +40,8 @@
 #include "triangle.h"
 #include "triangle_hole.h"
 
+void retry();
+
 struct Note
 {
     uint8_t type;
@@ -50,7 +55,7 @@ std::deque<Note> notes;
 size_t size = 0;
 uint32_t *chart = nullptr;
 
-FILE *song;
+FILE *song = nullptr;
 mm_stream stream;
 
 uint16_t *gfx[8];
@@ -101,118 +106,112 @@ mm_word audioCallback(mm_word length, mm_addr dest, mm_stream_formats format)
     return length;
 }
 
-void updateChart()
+void fileBrowser()
 {
-    // Execute chart opcodes
-    while (counter < size && !finished)
+    std::vector<std::string> files;
+    DIR *dir = opendir("/project-ds/dsc");
+    dirent *entry;
+
+    // Build a list of all DSC files in the folder
+    while ((entry = readdir(dir)))
     {
-        switch (chart[counter])
-        {
-            case 0x00: // End
-            {
-                // Indicate the chart has finished executing
-                finished = true;
-                return;
-            }
-
-            case 0x01: // Time
-            {
-                // Stop execution until the target time is reached
-                if (timer < chart[counter + 1])
-                    return;
-                break;
-            }
-
-            case 0x06: // Target
-            {
-                // Add a note to the queue
-                if (chart[counter + 1] < 8) // Buttons and holds
-                {
-                    static Note note;
-                    note.type = chart[counter + 1] & 3;
-                    note.x    = chart[counter + 2] * 256 / 500000 - 16;
-                    note.y    = chart[counter + 3] * 192 / 250000 - 16;
-                    note.time = timer + 150000;
-                    notes.push_back(note);
-                }
-                break;
-            }
-
-            case 0x19: // Music play
-            {
-                // Start the audio stream
-                mmStreamOpen(&stream);
-                break;
-            }
-        }
-
-        // Move to the next opcode
-        counter += paramCounts[chart[counter]] + 1;
+        std::string name = entry->d_name;
+        if (name.find(".dsc", name.length() - 4) != std::string::npos)
+            files.push_back(name);
     }
-}
 
-void retry()
-{
-    printf("Press start to retry.\n");
-    mmStreamClose();
+    closedir(dir);
+    sort(files.begin(), files.end());
 
-    // Wait on the retry screen
-    while (true)
+    // Ensure there are files present
+    if (files.empty())
     {
-        scanKeys();
+        printf("No DSC files found.\n");
+        printf("Place them in '/project-ds/dsc'.\n");
 
-        // Reset the chart when start is pressed
-        if (keysDown() & KEY_START)
-        {
-            consoleClear();
-            notes.clear();
-            fseek(song, 0, SEEK_SET);
-            counter = 1;
-            timer = 0;
-            finished = false;
-            return;
-        }
-
-        swiWaitForVBlank();
-    }
-}
-
-int main()
-{
-    fatInitDefault();
-    consoleDemoInit();
-
-    // Setup graphics on the main screen
-    videoSetMode(MODE_3_2D);
-    vramSetBankA(VRAM_A_MAIN_SPRITE);
-    oamInit(&oamMain, SpriteMapping_1D_64, false);
-    BG_PALETTE[0] = 0x4210;
-
-    // Attempt to load the chart file
-    if (FILE *file = fopen("chart.dsc", "rb"))
-    {
-        // Load the chart file into memory
-        fseek(file, 0, SEEK_END);
-        size = ftell(file) / 4;
-        fseek(file, 0, SEEK_SET);
-        chart = new uint32_t[size];
-        fread(chart, sizeof(uint32_t), size, file);
-        fclose(file);
-    }
-    else
-    {
-        printf("Please provide a file named chart.dsc on the SD card.\n");
-
-        // Do nothing since there's no chart to play
+        // Do nothing since there are no files to show
         while (true)
             swiWaitForVBlank();
     }
 
+    size_t selection = 0;
+    uint8_t framesHeld = 0;
+
+    // Show the file browser
+    while (true)
+    {
+        // Calculate the offset to display the files from
+        size_t offset = 0;
+        if (files.size() > 24)
+        {
+            if (selection >= files.size() - 12)
+                offset = files.size() - 24;
+            else if (selection > 12)
+                offset = selection - 12;
+        }
+
+        // Display a section of files around the current selection
+        consoleClear();
+        for (size_t i = offset; i < offset + std::min(files.size(), 24U); i++)
+            printf((i == selection) ? "\x1b[%d;0H>%s\n" : "\x1b[%d;0H %s\n", i - offset, files[i].c_str());
+
+        uint16_t held = 0;
+
+        // Wait for button input
+        while (!held)
+        {
+            scanKeys();
+            held = keysHeld();
+            if (!held) framesHeld = 0;
+            swiWaitForVBlank();
+        }
+
+        if (held & KEY_A)
+        {
+            // Select the current file and proceed to load it
+            consoleClear();
+            break;
+        }
+        else if (held & KEY_UP)
+        {
+            // Decrement the current selection with wraparound, continuously after 30 frames
+            if ((framesHeld > 30 || framesHeld++ == 0) && selection-- == 0)
+                selection = files.size() - 1;
+        }
+        else if (held & KEY_DOWN)
+        {
+            // Increment the current selection with wraparound, continuously after 30 frames
+            if ((framesHeld > 30 || framesHeld++ == 0) && ++selection == files.size())
+                selection = 0;
+        }
+    }
+
+    // Infer names for all the files that might need to be accessed
+    std::string dscName = "/project-ds/dsc/" + files[selection];
+    std::string oggName = "/project-ds/ogg/" + files[selection].substr(0, 6) + ".ogg";
+    std::string pcmName = "/project-ds/pcm/" + files[selection].substr(0, 6) + ".pcm";
+
+    // Load the chart file into memory
+    FILE *file = fopen(dscName.c_str(), "rb");
+    fseek(file, 0, SEEK_END);
+    size = ftell(file) / 4;
+    fseek(file, 0, SEEK_SET);
+    if (chart) delete[] chart;
+    chart = new uint32_t[size];
+    fread(chart, sizeof(uint32_t), size, file);
+    fclose(file);
+
+    if (song)
+    {
+        fclose(song);
+        song = nullptr;
+    }
+
     // Attempt to load the converted music file
-    if (!(song = fopen("chart.pcm", "rb")))
+    if (!(song = fopen(pcmName.c_str(), "rb")))
     {
         // Attempt to load an OGG file for conversion
-        if (FILE *songOgg = fopen("chart.ogg", "rb"))
+        if (FILE *songOgg = fopen(oggName.c_str(), "rb"))
         {
             ogg_sync_state   oy;
             ogg_stream_state os;
@@ -248,7 +247,7 @@ int main()
             vorbis_synthesis_halfrate(&vi, 1);
 
             printf("Converting to PCM16...\n");
-            FILE *songPcm = fopen("chart.pcm", "wb");
+            FILE *songPcm = fopen(pcmName.c_str(), "wb");
 
             int i = 0;
 
@@ -308,19 +307,114 @@ int main()
             fclose(songOgg);
 
             // Open the file after decoding
-            song = fopen("chart.pcm", "rb");
+            song = fopen(pcmName.c_str(), "rb");
             printf("Done!\n");
             retry();
         }
-        else
-        {
-            printf("Please provide a file named chart.ogg on the SD card.\n");
-
-            // Do nothing since there's no music to play
-            while (true)
-                swiWaitForVBlank();
-        }
     }
+}
+
+void retry()
+{
+    printf("Press start to retry.\n");
+    printf("Press select to return to songs.\n");
+    mmStreamClose();
+
+    // Show the retry screen
+    while (true)
+    {
+        // Check key input once per frame
+        scanKeys();
+        uint16_t down = keysDown();
+        swiWaitForVBlank();
+
+        // Open the file browser on select, or reset the chart on start
+        if (down & KEY_SELECT)
+            fileBrowser();
+        else if (!(down & KEY_START))
+            continue;
+
+        // Reset the current chart
+        consoleClear();
+        notes.clear();
+        fseek(song, 0, SEEK_SET);
+        counter = 1;
+        timer = 0;
+        finished = false;
+        return;
+    }
+}
+
+void updateChart()
+{
+    // Execute chart opcodes
+    while (counter < size && !finished)
+    {
+        switch (chart[counter])
+        {
+            case 0x00: // End
+            {
+                // Indicate the chart has finished executing
+                finished = true;
+                return;
+            }
+
+            case 0x01: // Time
+            {
+                // Stop execution until the target time is reached
+                if (timer < chart[counter + 1])
+                    return;
+                break;
+            }
+
+            case 0x06: // Target
+            {
+                // Add a note to the queue
+                if (chart[counter + 1] < 8) // Buttons and holds
+                {
+                    static Note note;
+                    note.type = chart[counter + 1] & 3;
+                    note.x    = chart[counter + 2] * 256 / 500000 - 16;
+                    note.y    = chart[counter + 3] * 192 / 250000 - 16;
+                    note.time = timer + 150000;
+                    notes.push_back(note);
+                }
+                break;
+            }
+
+            case 0x19: // Music play
+            {
+                // Start the audio stream if a file is loaded
+                if (song)
+                    mmStreamOpen(&stream);
+                break;
+            }
+        }
+
+        // Move to the next opcode
+        counter += paramCounts[chart[counter]] + 1;
+    }
+}
+
+int main()
+{
+    fatInitDefault();
+    consoleDemoInit();
+
+    // Setup graphics on the main screen
+    videoSetMode(MODE_3_2D);
+    vramSetBankA(VRAM_A_MAIN_SPRITE);
+    oamInit(&oamMain, SpriteMapping_1D_64, false);
+    BG_PALETTE[0] = 0x4210;
+
+    // Create directories in case they don't exist
+    mkdir("/project-ds",     0777);
+    mkdir("/project-ds/dsc", 0777);
+    mkdir("/project-ds/ogg", 0777);
+    mkdir("/project-ds/pcm", 0777);
+
+    // Open the file browser
+    fileBrowser();
 
     // Initialize maxmod without a soundbank
     mm_ds_system sys;
@@ -420,7 +514,7 @@ int main()
         // Move to the next frame
         oamUpdate(&oamMain);
         swiWaitForVBlank();
-        timer += 1667;
+        timer += 1670;
 
         // Check the clear condition
         if (finished && notes.empty())
