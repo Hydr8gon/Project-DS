@@ -63,6 +63,9 @@ int palIdx[8];
 
 uint32_t counter = 1;
 uint32_t timer = 0;
+uint8_t current = 0;
+uint8_t mask = 0;
+uint8_t mask2 = 0;
 bool finished = false;
 
 const uint8_t paramCounts[0x100] =
@@ -340,6 +343,9 @@ void retry()
         fseek(song, 0, SEEK_SET);
         counter = 1;
         timer = 0;
+        current = 0;
+        mask = 0;
+        mask2 = 0;
         finished = false;
         return;
     }
@@ -465,41 +471,59 @@ int main()
         {
             scanKeys();
             uint16_t down = keysDown();
+            uint16_t up   = keysUp();
 
-            // Get the current notes that need to be hit
-            size_t count = 0;
-            uint16_t key = 0;
-            for (; count < notes.size() && notes[count].time == notes[0].time; count++)
-                key |= keys[notes[count].type];
-
-            if (down && key)
+            // Get the keys that need to be pressed for the current notes
+            if (!mask)
             {
-                if (down & key)
+                while (current < notes.size() && notes[current].time == notes[0].time)
+                    mask |= BIT(notes[current++].type);
+            }
+
+            if (mask)
+            {
+                // Scan key input and track which keys are pressed
+                for (int i = 0; i < 4; i++)
                 {
-                    // Dequeue notes that are hit
-                    for (size_t i = 0; i < count; i++)
-                        notes.pop_front();
+                    if (down & keys[i])
+                    {
+                        if (mask & BIT(i))
+                        {
+                            mask2 |= BIT(i);
+                            continue;
+                        }
+
+                        // Fail if a wrong key is pressed
+                        printf("FAILED...\n");
+                        retry();
+                    }
+                    else if (up & keys[i])
+                    {
+                        mask2 &= ~BIT(i);
+                    }
                 }
-                else
+
+                if (mask == mask2)
                 {
-                    // Fail if the pressed key is wrong
+                    // Clear notes if the pressed keys match
+                    for (; current > 0; current--)
+                        notes.pop_front();
+                    mask = mask2 = 0;
+                }
+                else if (notes[0].time + 50000 < timer)
+                {
+                    // Fail if a note wasn't cleared in time
                     printf("FAILED...\n");
                     retry();
                 }
-            }
-            else if (notes[0].time + 50000 < timer)
-            {
-                // Fail if a note wasn't hit in time
-                printf("FAILED...\n");
-                retry();
-            }
-            else
-            {
-                // Draw buttons for the current notes
-                for (size_t i = 0; i < count; i++)
+                else
                 {
-                    oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, palIdx[notes[i].type + 4], SpriteSize_32x32,
-                        SpriteColorFormat_16Color, gfx[notes[i].type + 4], 0, false, false, false, false, false);
+                    // Draw buttons for the current notes
+                    for (size_t i = 0; i < current; i++)
+                    {
+                        oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, palIdx[notes[i].type + 4], SpriteSize_32x32,
+                            SpriteColorFormat_16Color, gfx[notes[i].type + 4], 0, false, false, false, false, false);
+                    }
                 }
             }
         }
