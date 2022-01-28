@@ -74,13 +74,13 @@ bool finished = false;
 
 const uint8_t paramCounts[0x100] =
 {
-    0,  1,  4,  2,  2,  2,  7,  4,  2,  6,  2,  1,  6,  2,  1,  1,
-    3,  2,  3,  5,  5,  4,  4,  5,  2,  0,  2,  4,  2,  2,  1, 21,
-    0,  3,  2,  5,  1,  1,  7,  1,  1,  2,  1,  2,  1,  2,  3,  3,
-    1,  2,  2,  3,  6,  6,  1,  1,  2,  3,  1,  2,  2,  4,  4,  1,
-    2,  1,  2,  1,  1,  3,  3,  3,  2,  1,  9,  3,  2,  4,  2,  3,
-    2, 24,  1,  2,  1,  3,  1,  3,  4,  1,  2,  6,  3,  2,  3,  3,
-    4,  1,  1,  3,  3,  4,  2,  3,  3,  8,  2
+    0,  1,  4,  2,  2,  2,  7,  4,  2,  6,  2,  1,  6,  2,  1,  1, // 0x00-0x0F
+    3,  2,  3,  5,  5,  4,  4,  5,  2,  0,  2,  4,  2,  2,  1, 21, // 0x10-0x1F
+    0,  3,  2,  5,  1,  1,  7,  1,  1,  2,  1,  2,  1,  2,  3,  3, // 0x20-0x2F
+    1,  2,  2,  3,  6,  6,  1,  1,  2,  3,  1,  2,  2,  4,  4,  1, // 0x30-0x3F
+    2,  1,  2,  1,  1,  3,  3,  3,  2,  1,  9,  3,  2,  4,  2,  3, // 0x40-0x4F
+    2, 24,  1,  2,  1,  3,  1,  3,  4,  1,  2,  6,  3,  2,  3,  3, // 0x50-0x5F
+    4,  1,  1,  3,  3,  4,  2,  3,  3,  8,  2                      // 0x60-0x6A
 };
 
 const uint16_t keys[6] =
@@ -150,17 +150,17 @@ void fileBrowser()
     {
         // Calculate the offset to display the files from
         size_t offset = 0;
-        if (files.size() > 24)
+        if (files.size() > 23)
         {
-            if (selection >= files.size() - 12)
-                offset = files.size() - 24;
-            else if (selection > 12)
-                offset = selection - 12;
+            if (selection >= files.size() - 11)
+                offset = files.size() - 23;
+            else if (selection > 11)
+                offset = selection - 11;
         }
 
         // Display a section of files around the current selection
         consoleClear();
-        for (size_t i = offset; i < offset + std::min(files.size(), 24U); i++)
+        for (size_t i = offset; i < offset + std::min(files.size(), 23U); i++)
             printf((i == selection) ? "\x1b[%d;0H>%s\n" : "\x1b[%d;0H %s\n", i - offset, files[i].c_str());
 
         uint16_t held = 0;
@@ -297,15 +297,15 @@ void fileBrowser()
                     while (int samples = vorbis_synthesis_pcmout(&vd, &pcm))
                     {
                         // Convert floats and combine channels to produce stereo PCM16
-                        int16_t convbuffer[2048];
+                        int16_t conv[2048];
                         for (int j = 0; j < samples; j++)
                         {
-                            convbuffer[j * 2 + 0] = (pcm[0][j] + pcm[2][j]) * 32767.0f;
-                            convbuffer[j * 2 + 1] = (pcm[1][j] + pcm[3][j]) * 32767.0f;
+                            conv[j * 2 + 0] = (pcm[0][j] + pcm[2][j]) * 32767.0f;
+                            conv[j * 2 + 1] = (pcm[1][j] + pcm[3][j]) * 32767.0f;
                         }
 
                         // Write the converted data to file
-                        fwrite(convbuffer, sizeof(int16_t), samples * 2, songPcm);
+                        fwrite(conv, sizeof(int16_t), samples * 2, songPcm);
                         vorbis_synthesis_read(&vd, samples);
                     }
                 }
@@ -391,8 +391,8 @@ void updateChart()
                     break;
 
                 // Add a note to the queue
-                note.x    = chart[counter + 2] * 256 / 500000 - 16;
-                note.y    = chart[counter + 3] * 192 / 250000 - 16;
+                note.x    = chart[counter + 2] * 256 / 480000 - 16;
+                note.y    = chart[counter + 3] * 192 / 270000 - 16;
                 note.time = timer + 150000;
                 notes.push_back(note);
                 break;
