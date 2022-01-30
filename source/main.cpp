@@ -40,9 +40,13 @@
 #include "triangle.h"
 #include "triangle_hole.h"
 #include "slider_l.h"
+#include "slider_lh.h"
 #include "slider_l_hole.h"
+#include "slider_lh_hole.h"
 #include "slider_r.h"
+#include "slider_rh.h"
 #include "slider_r_hole.h"
+#include "slider_rh_hole.h"
 
 void retry();
 
@@ -62,8 +66,8 @@ uint32_t *chart = nullptr;
 FILE *song = nullptr;
 mm_stream stream;
 
-uint16_t *gfx[12];
-int palIdx[12];
+uint16_t *gfx[16];
+int palIdx[16];
 
 uint32_t counter = 1;
 uint32_t timer = 0;
@@ -381,14 +385,19 @@ void updateChart()
             case 0x06: // Target
             {
                 static Note note;
+                static uint32_t prev = 0;
 
                 // Verify the note type
                 if (chart[counter + 1] < 8) // Buttons and holds
                     note.type = chart[counter + 1] & 3;
                 else if (chart[counter + 1] == 12 || chart[counter + 1] == 13) // Single slides
                     note.type = chart[counter + 1] - 8;
+                else if (chart[counter + 1] == 15 || chart[counter + 1] == 16) // Held slides
+                    note.type = (chart[counter + 1] - 11) | ((prev == chart[counter + 1]) << 7);
                 else
                     break;
+
+                prev = chart[counter + 1];
 
                 // Add a note to the queue
                 note.x    = chart[counter + 2] * 256 / 480000 - 16;
@@ -449,18 +458,22 @@ int main()
     stream.manual        = true;
 
     // Prepare the graphic tile data
-    gfx[0]  = initObjTiles16(triangle_holeTiles, triangle_holeTilesLen, SpriteSize_32x32);
-    gfx[1]  = initObjTiles16(circle_holeTiles,   circle_holeTilesLen,   SpriteSize_32x32);
-    gfx[2]  = initObjTiles16(cross_holeTiles,    cross_holeTilesLen,    SpriteSize_32x32);
-    gfx[3]  = initObjTiles16(square_holeTiles,   square_holeTilesLen,   SpriteSize_32x32);
-    gfx[4]  = initObjTiles16(slider_l_holeTiles, slider_l_holeTilesLen, SpriteSize_32x32);
-    gfx[5]  = initObjTiles16(slider_r_holeTiles, slider_r_holeTilesLen, SpriteSize_32x32);
-    gfx[6]  = initObjTiles16(triangleTiles,      triangleTilesLen,      SpriteSize_32x32);
-    gfx[7]  = initObjTiles16(circleTiles,        circleTilesLen,        SpriteSize_32x32);
-    gfx[8]  = initObjTiles16(crossTiles,         crossTilesLen,         SpriteSize_32x32);
-    gfx[9]  = initObjTiles16(squareTiles,        squareTilesLen,        SpriteSize_32x32);
-    gfx[10] = initObjTiles16(slider_lTiles,      slider_lTilesLen,      SpriteSize_32x32);
-    gfx[11] = initObjTiles16(slider_rTiles,      slider_rTilesLen,      SpriteSize_32x32);
+    gfx[0]  = initObjTiles16(triangle_holeTiles,  triangle_holeTilesLen,  SpriteSize_32x32);
+    gfx[1]  = initObjTiles16(circle_holeTiles,    circle_holeTilesLen,    SpriteSize_32x32);
+    gfx[2]  = initObjTiles16(cross_holeTiles,     cross_holeTilesLen,     SpriteSize_32x32);
+    gfx[3]  = initObjTiles16(square_holeTiles,    square_holeTilesLen,    SpriteSize_32x32);
+    gfx[4]  = initObjTiles16(slider_l_holeTiles,  slider_l_holeTilesLen,  SpriteSize_32x32);
+    gfx[5]  = initObjTiles16(slider_r_holeTiles,  slider_r_holeTilesLen,  SpriteSize_32x32);
+    gfx[6]  = initObjTiles16(slider_lh_holeTiles, slider_lh_holeTilesLen, SpriteSize_32x32);
+    gfx[7]  = initObjTiles16(slider_rh_holeTiles, slider_rh_holeTilesLen, SpriteSize_32x32);
+    gfx[8]  = initObjTiles16(triangleTiles,       triangleTilesLen,       SpriteSize_32x32);
+    gfx[9]  = initObjTiles16(circleTiles,         circleTilesLen,         SpriteSize_32x32);
+    gfx[10] = initObjTiles16(crossTiles,          crossTilesLen,          SpriteSize_32x32);
+    gfx[11] = initObjTiles16(squareTiles,         squareTilesLen,         SpriteSize_32x32);
+    gfx[12] = initObjTiles16(slider_lTiles,       slider_lTilesLen,       SpriteSize_32x32);
+    gfx[13] = initObjTiles16(slider_rTiles,       slider_rTilesLen,       SpriteSize_32x32);
+    gfx[14] = initObjTiles16(slider_lhTiles,      slider_lhTilesLen,      SpriteSize_32x32);
+    gfx[15] = initObjTiles16(slider_rhTiles,      slider_rhTilesLen,      SpriteSize_32x32);
 
     // Prepare the graphic palette data
     palIdx[0]  = initObjPal16(triangle_holePal);
@@ -469,12 +482,16 @@ int main()
     palIdx[3]  = initObjPal16(square_holePal);
     palIdx[4]  = initObjPal16(slider_l_holePal);
     palIdx[5]  = initObjPal16(slider_r_holePal);
-    palIdx[6]  = initObjPal16(trianglePal);
-    palIdx[7]  = initObjPal16(circlePal);
-    palIdx[8]  = initObjPal16(crossPal);
-    palIdx[9]  = initObjPal16(squarePal);
-    palIdx[10] = initObjPal16(slider_lPal);
-    palIdx[11] = initObjPal16(slider_rPal);
+    palIdx[6]  = initObjPal16(slider_lh_holePal);
+    palIdx[7]  = initObjPal16(slider_rh_holePal);
+    palIdx[8]  = initObjPal16(trianglePal);
+    palIdx[9]  = initObjPal16(circlePal);
+    palIdx[10] = initObjPal16(crossPal);
+    palIdx[11] = initObjPal16(squarePal);
+    palIdx[12] = initObjPal16(slider_lPal);
+    palIdx[13] = initObjPal16(slider_rPal);
+    palIdx[14] = initObjPal16(slider_lhPal);
+    palIdx[15] = initObjPal16(slider_rhPal);
 
     while (true)
     {
@@ -488,6 +505,7 @@ int main()
         if (!notes.empty() && notes[0].time - 50000 < timer)
         {
             scanKeys();
+            uint16_t held = keysHeld();
             uint16_t down = keysDown();
             uint16_t up   = keysUp();
 
@@ -495,15 +513,28 @@ int main()
             if (!mask)
             {
                 while (current < notes.size() && notes[current].time == notes[0].time)
-                    mask |= BIT(notes[current++].type);
+                    mask |= BIT(notes[current++].type & ~BIT(7));
             }
 
             if (mask)
             {
+                // Draw buttons for the current notes
+                for (size_t i = 0; i < current; i++)
+                {
+                    uint8_t type = (notes[i].type & ~BIT(7)) + ((notes[i].type & BIT(7)) ? 10 : 8);
+                    oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, palIdx[type], SpriteSize_32x32,
+                        SpriteColorFormat_16Color, gfx[type], 0, false, false, false, false, false);
+                }
+
                 // Scan key input and track which keys are pressed
                 for (int i = 0; i < 6; i++)
                 {
-                    if (down & keys[i])
+                    if ((notes[0].type & BIT(7)) && (held & keys[i]))
+                    {
+                        if (mask & BIT(i))
+                            mask2 |= BIT(i);
+                    }
+                    else if (down & keys[i])
                     {
                         if (mask & BIT(i))
                         {
@@ -534,23 +565,15 @@ int main()
                     printf("FAILED...\n");
                     retry();
                 }
-                else
-                {
-                    // Draw buttons for the current notes
-                    for (size_t i = 0; i < current; i++)
-                    {
-                        oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, palIdx[notes[i].type + 6], SpriteSize_32x32,
-                            SpriteColorFormat_16Color, gfx[notes[i].type + 6], 0, false, false, false, false, false);
-                    }
-                }
             }
         }
 
         // Draw holes for all queued notes
         for (size_t i = 0; i < notes.size(); i++)
         {
-            oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, palIdx[notes[i].type], SpriteSize_32x32,
-                SpriteColorFormat_16Color, gfx[notes[i].type], 0, false, false, false, false, false);
+            uint8_t type = (notes[i].type & ~BIT(7)) + ((notes[i].type & BIT(7)) ? 2 : 0);
+            oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, palIdx[type], SpriteSize_32x32,
+                SpriteColorFormat_16Color, gfx[type], 0, false, false, false, false, false);
         }
 
         // Move to the next frame
