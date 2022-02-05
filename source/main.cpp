@@ -18,6 +18,7 @@
 */
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <deque>
@@ -48,13 +49,16 @@
 #include "slider_r_hole.h"
 #include "slider_rh_hole.h"
 
+#define PI 3.14159
+
 void retry();
 
 struct Note
 {
     uint8_t type;
-    uint8_t x;
-    uint8_t y;
+    int32_t x, y;
+    int32_t incX, incY;
+    int32_t ofsX, ofsY;
     uint32_t time;
 };
 
@@ -62,6 +66,7 @@ std::deque<Note> notes;
 
 size_t size = 0;
 uint32_t *chart = nullptr;
+float speed = 2.0f;
 
 FILE *song = nullptr;
 mm_stream stream;
@@ -329,16 +334,25 @@ void fileBrowser()
 void retry()
 {
     printf("Press start to retry.\n");
-    printf("Press select to return to songs.\n");
+    printf("Press select to return to songs.");
+    printf("Press dpad to adjust note speed.");
     mmStreamClose();
 
     // Show the retry screen
     while (true)
     {
+        printf("\x1b[22;0HNote speed: %.3f\n", speed);
+
         // Check key input once per frame
         scanKeys();
         uint16_t down = keysDown();
         swiWaitForVBlank();
+
+        // Adjust note speed with the up and down buttons
+        if ((down & KEY_UP) && speed < 3)
+            speed += 0.125;
+        else if ((down & KEY_DOWN) && speed > 1)
+            speed -= 0.125;
 
         // Open the file browser on select, or reset the chart on start
         if (down & KEY_SELECT)
@@ -399,10 +413,20 @@ void updateChart()
 
                 prev = chart[counter + 1];
 
+                // Calculate the note increment and offset based on angle and speed
+                float angle = (int32_t)chart[counter + 4];
+                angle = angle * PI / 180000;
+                note.incX = (int)(sin(angle) *  0x100) & ~7;
+                note.incY = (int)(cos(angle) * -0x100) & ~7;
+                note.ofsX = note.incX * 2 * 90;
+                note.ofsY = note.incY * 2 * 90;
+                note.incX *= speed;
+                note.incY *= speed;
+
                 // Add a note to the queue
                 note.x    = chart[counter + 2] * 256 / 480000 - 16;
                 note.y    = chart[counter + 3] * 192 / 270000 - 16;
-                note.time = timer + 150000;
+                note.time = timer + 150000 * 2 / speed;
                 notes.push_back(note);
                 break;
             }
@@ -518,14 +542,6 @@ int main()
 
             if (mask)
             {
-                // Draw buttons for the current notes
-                for (size_t i = 0; i < current; i++)
-                {
-                    uint8_t type = (notes[i].type & ~BIT(7)) + ((notes[i].type & BIT(7)) ? 10 : 8);
-                    oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, palIdx[type], SpriteSize_32x32,
-                        SpriteColorFormat_16Color, gfx[type], 0, false, false, false, false, false);
-                }
-
                 // Scan key input and track which keys are pressed
                 for (int i = 0; i < 6; i++)
                 {
@@ -568,6 +584,22 @@ int main()
             }
         }
 
+        // Update all queued notes
+        for (size_t i = 0; i < notes.size(); i++)
+        {
+            // Move the note closer to its hole
+            int x = notes[i].x + ((notes[i].ofsX -= notes[i].incX) >> 8);
+            int y = notes[i].y + ((notes[i].ofsY -= notes[i].incY) >> 8);
+
+            // Draw the note if it's within screen bounds
+            if (x > -32 && x < 256 && y > -32 && y < 192)
+            {
+                uint8_t type = (notes[i].type & ~BIT(7)) + ((notes[i].type & BIT(7)) ? 10 : 8);
+                oamSet(&oamMain, sprite++, x, y, 0, palIdx[type], SpriteSize_32x32,
+                    SpriteColorFormat_16Color, gfx[type], 0, false, false, false, false, false);
+            }
+        }
+
         // Draw holes for all queued notes
         for (size_t i = 0; i < notes.size(); i++)
         {
@@ -579,7 +611,7 @@ int main()
         // Move to the next frame
         oamUpdate(&oamMain);
         swiWaitForVBlank();
-        timer += 1670;
+        timer += 1672;
 
         // Check the clear condition
         if (finished && notes.empty())
