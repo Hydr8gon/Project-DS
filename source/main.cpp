@@ -48,8 +48,14 @@
 #include "slider_rh.h"
 #include "slider_r_hole.h"
 #include "slider_rh_hole.h"
+#include "cool.h"
+#include "fine.h"
+#include "safe.h"
+#include "sad.h"
+#include "miss.h"
 
 #define PI 3.14159
+#define FRAME_TIME 1672
 
 void retry();
 
@@ -71,14 +77,15 @@ float speed = 2.0f;
 FILE *song = nullptr;
 mm_stream stream;
 
-uint16_t *gfx[16];
-int palIdx[16];
+uint16_t *gfx[21];
+int palIdx[21];
 
 uint32_t counter = 1;
 uint32_t timer = 0;
 uint8_t current = 0;
 uint8_t mask = 0;
 uint8_t mask2 = 0;
+uint8_t statTimer = 0;
 bool finished = false;
 
 const uint8_t paramCounts[0x100] =
@@ -111,7 +118,7 @@ int initObjPal16(const unsigned short *pal)
 {
     // Copy a 16-color object palette into appropriate memory, and return the palette index
     static uint8_t index = 0;
-    if (index >= 32) return -1;
+    if (index >= 16) return -1;
     dmaCopy(pal, &SPRITE_PALETTE[index * 16], 16 * sizeof(uint16_t));
     return index++;
 }
@@ -369,6 +376,7 @@ void retry()
         current = 0;
         mask = 0;
         mask2 = 0;
+        statTimer = 0;
         finished = false;
         return;
     }
@@ -498,16 +506,21 @@ int main()
     gfx[13] = initObjTiles16(slider_rTiles,       slider_rTilesLen,       SpriteSize_32x32);
     gfx[14] = initObjTiles16(slider_lhTiles,      slider_lhTilesLen,      SpriteSize_32x32);
     gfx[15] = initObjTiles16(slider_rhTiles,      slider_rhTilesLen,      SpriteSize_32x32);
+    gfx[16] = initObjTiles16(coolTiles,           coolTilesLen,           SpriteSize_32x16);
+    gfx[17] = initObjTiles16(fineTiles,           fineTilesLen,           SpriteSize_32x16);
+    gfx[18] = initObjTiles16(safeTiles,           safeTilesLen,           SpriteSize_32x16);
+    gfx[19] = initObjTiles16(sadTiles,            sadTilesLen,            SpriteSize_32x16);
+    gfx[20] = initObjTiles16(missTiles,           missTilesLen,           SpriteSize_32x16);
 
     // Prepare the graphic palette data
     palIdx[0]  = initObjPal16(triangle_holePal);
-    palIdx[1]  = initObjPal16(circle_holePal);
+    palIdx[1]  = palIdx[0];
     palIdx[2]  = initObjPal16(cross_holePal);
-    palIdx[3]  = initObjPal16(square_holePal);
+    palIdx[3]  = palIdx[0];
     palIdx[4]  = initObjPal16(slider_l_holePal);
-    palIdx[5]  = initObjPal16(slider_r_holePal);
-    palIdx[6]  = initObjPal16(slider_lh_holePal);
-    palIdx[7]  = initObjPal16(slider_rh_holePal);
+    palIdx[5]  = palIdx[4];
+    palIdx[6]  = palIdx[4];
+    palIdx[7]  = palIdx[4];
     palIdx[8]  = initObjPal16(trianglePal);
     palIdx[9]  = initObjPal16(circlePal);
     palIdx[10] = initObjPal16(crossPal);
@@ -516,6 +529,15 @@ int main()
     palIdx[13] = initObjPal16(slider_rPal);
     palIdx[14] = initObjPal16(slider_lhPal);
     palIdx[15] = initObjPal16(slider_rhPal);
+    palIdx[16] = initObjPal16(coolPal);
+    palIdx[17] = initObjPal16(finePal);
+    palIdx[18] = initObjPal16(safePal);
+    palIdx[19] = initObjPal16(sadPal);
+    palIdx[20] = initObjPal16(missPal);
+
+    int32_t statX = 0, statY = 0;
+    int32_t statCurX = 0, statCurY = 0;
+    uint8_t statType = 0;
 
     while (true)
     {
@@ -536,8 +558,15 @@ int main()
             // Get the keys that need to be pressed for the current notes
             if (!mask)
             {
+                statX = statY = 0;
                 while (current < notes.size() && notes[current].time == notes[0].time)
+                {
+                    statX += notes[current].x + 16;
+                    statY += notes[current].y + 16;
                     mask |= BIT(notes[current++].type & ~BIT(7));
+                }
+                statX = statX / current - 16;
+                statY = statY / current - 28;
             }
 
             if (mask)
@@ -568,8 +597,32 @@ int main()
                     }
                 }
 
+                // Abort if failed
+                if (!mask)
+                    continue;
+
                 if (mask == mask2)
                 {
+                    if (!(notes[0].type & BIT(7)))
+                    {
+                        // Check how precisely the note was hit
+                        // TODO: verify timings
+                        int32_t offset = abs((int32_t)(notes[0].time - timer));
+                        if (offset <= FRAME_TIME * 3)
+                            statType = 0; // Cool
+                        else if (offset <= FRAME_TIME * 6)
+                            statType = 1; // Fine
+                        else if (offset <= FRAME_TIME * 9)
+                            statType = 2; // Safe
+                        else
+                            statType = 3; // Sad
+
+                        // Show the hit status above the note
+                        statTimer = 60;
+                        statCurX = statX;
+                        statCurY = statY;
+                    }
+
                     // Clear notes if the pressed keys match
                     for (; current > 0; current--)
                         notes.pop_front();
@@ -582,6 +635,14 @@ int main()
                     retry();
                 }
             }
+        }
+
+        // Draw the hit status while its timer is active
+        if (statTimer > 0)
+        {
+            oamSet(&oamMain, sprite++, statCurX, statCurY, 0, palIdx[16 + statType], SpriteSize_32x16,
+                SpriteColorFormat_16Color, gfx[16 + statType], 0, false, false, false, false, false);
+            statTimer--;
         }
 
         // Update all queued notes
@@ -611,7 +672,7 @@ int main()
         // Move to the next frame
         oamUpdate(&oamMain);
         swiWaitForVBlank();
-        timer += 1672;
+        timer += FRAME_TIME;
 
         // Check the clear condition
         if (finished && notes.empty())
