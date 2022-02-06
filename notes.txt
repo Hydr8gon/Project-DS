@@ -1,0 +1,161 @@
+Hatsune Miku: Project DIVA Future Tone / Hatsune Miku: Project DIVA Mega Mix
+Low-Level Notes and Documentation
+
+
+Script File Breakdown
+
+Script files have the extension .dsc and consist of 4-byte (32-bit) words. The
+first word is some sort of header or unknown data. Everything past that is a
+combination of opcodes and parameters. The opcode comes first, followed by the
+number of parameters associated to it. An opcode overview is given below.
+
+ Opcode | Params | Name
+--------+--------+--------
+ 0x00   |  0     | END
+ 0x01   |  1     | TIME
+ 0x02   |  4     | MIKU_MOVE
+ 0x03   |  2     | MIKU_ROT
+ 0x04   |  2     | MIKU_DISP
+ 0x05   |  2     | MIKU_SHADOW
+ 0x06   |  7     | TARGET
+ 0x07   |  4     | SET_MOTION
+ 0x08   |  2     | SET_PLAYDATA
+ 0x09   |  6     | EFFECT
+ 0x0A   |  2     | FADEIN_FIELD
+ 0x0B   |  1     | EFFECT_OFF
+ 0x0C   |  6     | SET_CAMERA
+ 0x0D   |  2     | DATA_CAMERA
+ 0x0E   |  1     | CHANGE_FIELD
+ 0x0F   |  1     | HIDE_FIELD
+ 0x10   |  3     | MOVE_FIELD
+ 0x11   |  2     | FADEOUT_FIELD
+ 0x12   |  3     | EYE_ANIM
+ 0x13   |  5     | MOUTH_ANIM
+ 0x14   |  5     | HAND_ANIM
+ 0x15   |  4     | LOOK_ANIM
+ 0x16   |  4     | EXPRESSION
+ 0x17   |  5     | LOOK_CAMERA
+ 0x18   |  2     | LYRIC
+ 0x19   |  0     | MUSIC_PLAY
+ 0x1A   |  2     | MODE_SELECT
+ 0x1B   |  4     | EDIT_MOTION
+ 0x1C   |  2     | BAR_TIME_SET
+ 0x1D   |  2     | SHADOWHEIGHT
+ 0x1E   |  1     | EDIT_FACE
+ 0x1F   | 21     | MOVE_CAMERA
+ 0x20   |  0     | PV_END
+ 0x21   |  3     | SHADOWPOS
+ 0x22   |  2     | EDIT_LYRIC
+ 0x23   |  5     | EDIT_TARGET
+ 0x24   |  1     | EDIT_MOUTH
+ 0x25   |  1     | SET_CHARA
+ 0x26   |  7     | EDIT_MOVE
+ 0x27   |  1     | EDIT_SHADOW
+ 0x28   |  1     | EDIT_EYELID
+ 0x29   |  2     | EDIT_EYE
+ 0x2A   |  1     | EDIT_ITEM
+ 0x2B   |  2     | EDIT_EFFECT
+ 0x2C   |  1     | EDIT_DISP
+ 0x2D   |  2     | EDIT_HAND_ANIM
+ 0x2E   |  3     | AIM
+ 0x2F   |  3     | HAND_ITEM
+ 0x30   |  1     | EDIT_BLUSH
+ 0x31   |  2     | NEAR_CLIP
+ 0x32   |  2     | CLOTH_WET
+ 0x33   |  3     | LIGHT_ROT
+ 0x34   |  6     | SCENE_FADE
+ 0x35   |  6     | TONE_TRANS
+ 0x36   |  1     | SATURATE
+ 0x37   |  1     | FADE_MODE
+ 0x38   |  2     | AUTO_BLINK
+ 0x39   |  3     | PARTS_DISP
+ 0x3A   |  1     | TARGET_FLYING_TIME
+ 0x3B   |  2     | CHARA_SIZE
+ 0x3C   |  2     | CHARA_HEIGHT_ADJUST
+ 0x3D   |  4     | ITEM_ANIM
+ 0x3E   |  4     | CHARA_POS_ADJUST
+ 0x3F   |  1     | SCENE_ROT
+ 0x40   |  2     | MOT_SMOOTH
+ 0x41   |  1     | PV_BRANCH_MODE
+ 0x42   |  2     | DATA_CAMERA_START
+ 0x43   |  1     | MOVIE_PLAY
+ 0x44   |  1     | MOVIE_DISP
+ 0x45   |  3     | WIND
+ 0x46   |  3     | OSAGE_STEP
+ 0x47   |  3     | OSAGE_MV_CCL
+ 0x48   |  2     | CHARA_COLOR
+ 0x49   |  1     | SE_EFFECT
+ 0x4A   |  9     | EDIT_MOVE_XYZ
+ 0x4B   |  3     | EDIT_EYELID_ANIM
+ 0x4C   |  2     | EDIT_INSTRUMENT_ITEM
+ 0x4D   |  4     | EDIT_MOTION_LOOP
+ 0x4E   |  2     | EDIT_EXPRESSION
+ 0x4F   |  3     | EDIT_EYE_ANIM
+ 0x50   |  2     | EDIT_MOUTH_ANIM
+ 0x51   | 24     | EDIT_CAMERA
+ 0x52   |  1     | EDIT_MODE_SELECT
+ 0x53   |  2     | PV_END_FADEOUT
+ 0x54   |  1     | TARGET_FLAG
+ 0x55   |  3     | ITEM_ANIM_ATTACH
+ 0x56   |  1     | SHADOW_RANGE
+ 0x57   |  3     | HAND_SCALE
+ 0x58   |  4     | LIGHT_POS
+ 0x59   |  1     | FACE_TYPE
+ 0x5A   |  2     | SHADOW_CAST
+ 0x5B   |  6     | EDIT_MOTION_F
+ 0x5C   |  3     | FOG
+ 0x5D   |  2     | BLOOM
+ 0x5E   |  3     | COLOR_COLLE
+ 0x5F   |  3     | DOF
+ 0x60   |  4     | CHARA_ALPHA
+ 0x61   |  1     | AOTO_CAP
+ 0x62   |  1     | MAN_CAP
+ 0x63   |  3     | TOON
+ 0x64   |  3     | SHIMMER
+ 0x65   |  4     | ITEM_ALPHA
+ 0x66   |  2     | MOVIE_CUT_CHG
+ 0x67   |  3     | CHARA_LIGHT
+ 0x68   |  3     | STAGE_LIGHT
+ 0x69   |  8     | AGEAGE_CTRL
+ 0x6A   |  2     | PSE
+
+
+Script Opcode Details
+
+This is a more detailed look at the functionality and parameters of script
+opcodes. This section is incomplete.
+
+0x00 - END
+Indicates the end of script execution. No parameters.
+
+0x01 - TIME
+Pauses execution until a given timestamp is reached. Parameter 1 is the time
+since starting execution to wait until, measured in 10^-5 seconds (100000 is
+equal to 1 second).
+
+0x06 - TARGET
+Creates a new target/note for the player to hit. Notes timed simultaneously (no
+TIME opcode between them) become multi-notes. Parameter 1 is the note type;
+known types are listed below. Parameter 2 is the X-coordinate; horizontal
+screen space seems to span 0 to 480000. Parameter 3 is the Y-coordinate;
+vertical screen space seems to span 0 to 270000. Parameter 4 is the angle the
+note should fly in from, relative to its coordinates; it spans -180000 to
+180000 clockwise, with 0 at the top. Parameters 5 to 7 are unknown.
+
+ Type | Name
+------+------
+  0   | Triangle
+  1   | Circle
+  2   | Cross
+  3   | Square
+  4   | Triangle (held)
+  5   | Circle (held)
+  6   | Cross (held)
+  7   | Square (held)
+ 12   | Left slider
+ 13   | Right slider
+ 15   | Left slider (held)
+ 16   | Right slider (held)
+
+0x19 - MUSIC_PLAY
+Starts playback of the associated music file. No parameters.
