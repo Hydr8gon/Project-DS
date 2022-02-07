@@ -159,3 +159,19 @@ note should fly in from, relative to its coordinates; it spans -180000 to
 
 0x19 - MUSIC_PLAY
 Starts playback of the associated music file. No parameters.
+
+
+Life Gauge
+
+Based on observation alone, these are values that would make sense for the life
+gauge. Its initial value is 127, with a max value of 255. The chart below shows
+how much the value is adjusted based on note timing when hit. Wrong notes have
+varying adjustments based on timing as well.
+
+ Time | Value
+------+------
+ Cool |  +2
+ Fine |  +1
+ Safe |   0
+ Sad  | -10
+ Miss | -20

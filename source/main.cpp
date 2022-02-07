@@ -82,6 +82,7 @@ int palIdx[21];
 
 uint32_t counter = 1;
 uint32_t timer = 0;
+uint8_t life = 127;
 uint8_t current = 0;
 uint8_t mask = 0;
 uint8_t mask2 = 0;
@@ -373,6 +374,7 @@ void retry()
         fseek(song, 0, SEEK_SET);
         counter = 1;
         timer = 0;
+        life = 127;
         current = 0;
         mask = 0;
         mask2 = 0;
@@ -548,13 +550,13 @@ int main()
         oamClear(&oamMain, 0, 0);
         int sprite = 0;
 
-        if (!notes.empty() && notes[0].time - 50000 < timer)
-        {
-            scanKeys();
-            uint16_t held = keysHeld();
-            uint16_t down = keysDown();
-            uint16_t up   = keysUp();
+        scanKeys();
+        uint16_t held = keysHeld();
+        uint16_t down = keysDown();
+        uint16_t up   = keysUp();
 
+        if (!notes.empty() && notes[0].time - FRAME_TIME * 12 < timer)
+        {
             // Get the keys that need to be pressed for the current notes
             if (!mask)
             {
@@ -579,7 +581,7 @@ int main()
                         if (mask & BIT(i))
                             mask2 |= BIT(i);
                     }
-                    else if (down & keys[i])
+                    else if (!(notes[0].type & BIT(7)) && (down & keys[i]))
                     {
                         if (mask & BIT(i))
                         {
@@ -587,9 +589,17 @@ int main()
                             continue;
                         }
 
-                        // Fail if a wrong key is pressed
-                        printf("FAILED...\n");
-                        retry();
+                        // Miss if a wrong key is pressed
+                        statType = 4;
+                        statTimer = 60;
+                        statCurX = statX;
+                        statCurY = statY;
+                        life = std::max(0, life - 20);
+
+                        // Clear notes that were missed
+                        for (; current > 0; current--)
+                            notes.pop_front();
+                        mask = mask2 = 0;
                     }
                     else if (up & keys[i])
                     {
@@ -605,17 +615,28 @@ int main()
                 {
                     if (!(notes[0].type & BIT(7)))
                     {
-                        // Check how precisely the note was hit
+                        // Check how precisely the note was hit and adjust life
                         // TODO: verify timings
                         int32_t offset = abs((int32_t)(notes[0].time - timer));
                         if (offset <= FRAME_TIME * 3)
+                        {
                             statType = 0; // Cool
+                            life = std::min(255, life + 2);
+                        }
                         else if (offset <= FRAME_TIME * 6)
+                        {
                             statType = 1; // Fine
+                            life = std::min(255, life + 1);
+                        }
                         else if (offset <= FRAME_TIME * 9)
+                        {
                             statType = 2; // Safe
+                        }
                         else
+                        {
                             statType = 3; // Sad
+                            life = std::max(0, life - 10);
+                        }
 
                         // Show the hit status above the note
                         statTimer = 60;
@@ -623,16 +644,27 @@ int main()
                         statCurY = statY;
                     }
 
-                    // Clear notes if the pressed keys match
+                    // Clear the notes that were hit
                     for (; current > 0; current--)
                         notes.pop_front();
                     mask = mask2 = 0;
                 }
-                else if (notes[0].time + 50000 < timer)
+                else if (notes[0].time + FRAME_TIME * 12 < timer)
                 {
-                    // Fail if a note wasn't cleared in time
-                    printf("FAILED...\n");
-                    retry();
+                    // Miss if a note wasn't cleared in time
+                    if (!(notes[0].type & BIT(7)))
+                    {
+                        statType = 4;
+                        statTimer = 60;
+                        statCurX = statX;
+                        statCurY = statY;
+                        life = std::max(0, life - 20);
+                    }
+
+                    // Clear the notes that were missed
+                    for (; current > 0; current--)
+                        notes.pop_front();
+                    mask = mask2 = 0;
                 }
             }
         }
@@ -669,13 +701,24 @@ int main()
                 SpriteColorFormat_16Color, gfx[type], 0, false, false, false, false, false);
         }
 
+        printf("\x1b[0;0HLife: %3u\n", life);
+
         // Move to the next frame
         oamUpdate(&oamMain);
         swiWaitForVBlank();
         timer += FRAME_TIME;
 
-        // Check the clear condition
-        if (finished && notes.empty())
+        // Check the end conditions
+        if (down & KEY_START)
+        {
+            retry();
+        }
+        else if (life == 0)
+        {
+            printf("FAILED...\n");
+            retry();
+        }
+        else if (finished && notes.empty())
         {
             printf("CLEAR!\n");
             retry();
