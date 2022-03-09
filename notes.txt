@@ -160,6 +160,11 @@ note should fly in from, relative to its coordinates; it spans -180000 to
 0x19 - MUSIC_PLAY
 Starts playback of the associated music file. No parameters.
 
+0x3A - TARGET_FLYING_TIME
+Sets the time between when a target/note is created and when it should be hit.
+Smaller values mean notes travel faster to reach their destination quicker.
+Parameter 1 is the amount of time, measured in milliseconds.
+
 
 Life Gauge
 

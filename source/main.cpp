@@ -72,7 +72,7 @@ std::deque<Note> notes;
 
 size_t size = 0;
 uint32_t *chart = nullptr;
-float speed = 2.0f;
+uint32_t flyTimeDef = 1750;
 
 FILE *song = nullptr;
 mm_stream stream;
@@ -82,6 +82,7 @@ int palIdx[21];
 
 uint32_t counter = 1;
 uint32_t timer = 0;
+uint32_t flyTime = flyTimeDef * 100;
 uint8_t life = 127;
 uint8_t current = 0;
 uint8_t mask = 0;
@@ -343,24 +344,25 @@ void retry()
 {
     printf("Press start to retry.\n");
     printf("Press select to return to songs.");
-    printf("Press dpad to adjust note speed.");
+    printf("Press dpad to adjust fly time.\n");
     mmStreamClose();
 
     // Show the retry screen
     while (true)
     {
-        printf("\x1b[22;0HNote speed: %.3f\n", speed);
+        printf("\x1b[22;0HDefault fly time: %4lu\n", flyTimeDef);
 
         // Check key input once per frame
         scanKeys();
         uint16_t down = keysDown();
         swiWaitForVBlank();
 
-        // Adjust note speed with the up and down buttons
-        if ((down & KEY_UP) && speed < 3)
-            speed += 0.125;
-        else if ((down & KEY_DOWN) && speed > 1)
-            speed -= 0.125;
+        // Adjust default fly time with the up and down buttons
+        // TODO: figure out how to properly set this
+        if ((down & KEY_UP) && flyTimeDef < 3000)
+            flyTimeDef += 50;
+        else if ((down & KEY_DOWN) && flyTimeDef > 500)
+            flyTimeDef -= 50;
 
         // Open the file browser on select, or reset the chart on start
         if (down & KEY_SELECT)
@@ -374,6 +376,7 @@ void retry()
         fseek(song, 0, SEEK_SET);
         counter = 1;
         timer = 0;
+        flyTime = flyTimeDef * 100;
         life = 127;
         current = 0;
         mask = 0;
@@ -426,17 +429,17 @@ void updateChart()
                 // Calculate the note increment and offset based on angle and speed
                 float angle = (int32_t)chart[counter + 4];
                 angle = angle * PI / 180000;
-                note.incX = (int)(sin(angle) *  0x100) & ~7;
-                note.incY = (int)(cos(angle) * -0x100) & ~7;
-                note.ofsX = note.incX * 2 * 90;
-                note.ofsY = note.incY * 2 * 90;
-                note.incX *= speed;
-                note.incY *= speed;
+                note.incX = (int)(sin(angle) *  0x100);
+                note.incY = (int)(cos(angle) * -0x100);
+                note.ofsX = note.incX * 60 * 3;
+                note.ofsY = note.incY * 60 * 3;
+                note.incX *= 100000.0f * 3 / flyTime;
+                note.incY *= 100000.0f * 3 / flyTime;
 
                 // Add a note to the queue
                 note.x    = chart[counter + 2] * 256 / 480000 - 16;
                 note.y    = chart[counter + 3] * 192 / 270000 - 16;
-                note.time = timer + 150000 * 2 / speed;
+                note.time = timer + flyTime;
                 notes.push_back(note);
                 break;
             }
@@ -446,6 +449,13 @@ void updateChart()
                 // Start the audio stream if a file is loaded
                 if (song)
                     mmStreamOpen(&stream);
+                break;
+            }
+
+            case 0x3A: // Target flying time
+            {
+                // Set the time between a note's creation and when it should be hit
+                flyTime = chart[counter + 1] * 100;
                 break;
             }
         }
