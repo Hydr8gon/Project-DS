@@ -412,19 +412,27 @@ void updateChart()
             case 0x06: // Target
             {
                 static Note note;
-                static uint32_t prev = 0;
+                int32_t y = chart[counter + 3] * 192 / 270000 - 16;
 
-                // Verify the note type
+                // Set the note type
                 if (chart[counter + 1] < 8) // Buttons and holds
+                {
                     note.type = chart[counter + 1] & 3;
+                }
                 else if (chart[counter + 1] == 12 || chart[counter + 1] == 13) // Single slides
+                {
                     note.type = chart[counter + 1] - 8;
+                }
                 else if (chart[counter + 1] == 15 || chart[counter + 1] == 16) // Held slides
-                    note.type = (chart[counter + 1] - 11) | ((prev == chart[counter + 1]) << 7);
+                {
+                    // Unless a new slide is starting, mark the note with an extra bit
+                    uint8_t type = chart[counter + 1] - 11;
+                    note.type = type | ((type == (note.type & ~BIT(7)) && y == note.y) << 7);
+                }
                 else
+                {
                     break;
-
-                prev = chart[counter + 1];
+                }
 
                 // Calculate the note increment and offset based on angle and speed
                 float angle = (int32_t)chart[counter + 4];
@@ -437,8 +445,8 @@ void updateChart()
                 note.incY *= 100000.0f * 3 / flyTime;
 
                 // Add a note to the queue
-                note.x    = chart[counter + 2] * 256 / 480000 - 16;
-                note.y    = chart[counter + 3] * 192 / 270000 - 16;
+                note.x = chart[counter + 2] * 256 / 480000 - 16;
+                note.y = y;
                 note.time = timer + flyTime;
                 notes.push_back(note);
                 break;
