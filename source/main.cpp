@@ -78,7 +78,6 @@ FILE *song = nullptr;
 mm_stream stream;
 
 uint16_t *gfx[21];
-int palIdx[21];
 
 uint32_t counter = 1;
 uint32_t timer = 0;
@@ -108,21 +107,12 @@ const uint16_t keys[6] =
     KEY_L,              KEY_R                // Slider L, Slider R
 };
 
-uint16_t *initObjTiles16(const unsigned int *tiles, size_t tilesLen, SpriteSize size)
+uint16_t *initObjBitmap(const unsigned int *bitmap, size_t bitmapLen, SpriteSize size)
 {
     // Copy 16-color object tiles into appropriate memory, and return a pointer to the data
-    uint16_t *gfx = oamAllocateGfx(&oamMain, size, SpriteColorFormat_16Color);
-    if (gfx) dmaCopy(tiles, gfx, tilesLen);
+    uint16_t *gfx = oamAllocateGfx(&oamMain, size, SpriteColorFormat_Bmp);
+    if (gfx) dmaCopy(bitmap, gfx, bitmapLen);
     return gfx;
-}
-
-int initObjPal16(const unsigned short *pal)
-{
-    // Copy a 16-color object palette into appropriate memory, and return the palette index
-    static uint8_t index = 0;
-    if (index >= 16) return -1;
-    dmaCopy(pal, &SPRITE_PALETTE[index * 16], 16 * sizeof(uint16_t));
-    return index++;
 }
 
 mm_word audioCallback(mm_word length, mm_addr dest, mm_stream_formats format)
@@ -481,7 +471,7 @@ int main()
     // Setup graphics on the main screen
     videoSetMode(MODE_3_2D);
     vramSetBankA(VRAM_A_MAIN_SPRITE);
-    oamInit(&oamMain, SpriteMapping_1D_64, false);
+    oamInit(&oamMain, SpriteMapping_Bmp_1D_128, false);
     BG_PALETTE[0] = 0x4210;
 
     // Create directories in case they don't exist
@@ -510,50 +500,27 @@ int main()
     stream.manual        = true;
 
     // Prepare the graphic tile data
-    gfx[0]  = initObjTiles16(triangle_holeTiles,  triangle_holeTilesLen,  SpriteSize_32x32);
-    gfx[1]  = initObjTiles16(circle_holeTiles,    circle_holeTilesLen,    SpriteSize_32x32);
-    gfx[2]  = initObjTiles16(cross_holeTiles,     cross_holeTilesLen,     SpriteSize_32x32);
-    gfx[3]  = initObjTiles16(square_holeTiles,    square_holeTilesLen,    SpriteSize_32x32);
-    gfx[4]  = initObjTiles16(slider_l_holeTiles,  slider_l_holeTilesLen,  SpriteSize_32x32);
-    gfx[5]  = initObjTiles16(slider_r_holeTiles,  slider_r_holeTilesLen,  SpriteSize_32x32);
-    gfx[6]  = initObjTiles16(slider_lh_holeTiles, slider_lh_holeTilesLen, SpriteSize_32x32);
-    gfx[7]  = initObjTiles16(slider_rh_holeTiles, slider_rh_holeTilesLen, SpriteSize_32x32);
-    gfx[8]  = initObjTiles16(triangleTiles,       triangleTilesLen,       SpriteSize_32x32);
-    gfx[9]  = initObjTiles16(circleTiles,         circleTilesLen,         SpriteSize_32x32);
-    gfx[10] = initObjTiles16(crossTiles,          crossTilesLen,          SpriteSize_32x32);
-    gfx[11] = initObjTiles16(squareTiles,         squareTilesLen,         SpriteSize_32x32);
-    gfx[12] = initObjTiles16(slider_lTiles,       slider_lTilesLen,       SpriteSize_32x32);
-    gfx[13] = initObjTiles16(slider_rTiles,       slider_rTilesLen,       SpriteSize_32x32);
-    gfx[14] = initObjTiles16(slider_lhTiles,      slider_lhTilesLen,      SpriteSize_32x32);
-    gfx[15] = initObjTiles16(slider_rhTiles,      slider_rhTilesLen,      SpriteSize_32x32);
-    gfx[16] = initObjTiles16(coolTiles,           coolTilesLen,           SpriteSize_32x16);
-    gfx[17] = initObjTiles16(fineTiles,           fineTilesLen,           SpriteSize_32x16);
-    gfx[18] = initObjTiles16(safeTiles,           safeTilesLen,           SpriteSize_32x16);
-    gfx[19] = initObjTiles16(sadTiles,            sadTilesLen,            SpriteSize_32x16);
-    gfx[20] = initObjTiles16(missTiles,           missTilesLen,           SpriteSize_32x16);
-
-    // Prepare the graphic palette data
-    palIdx[0]  = initObjPal16(triangle_holePal);
-    palIdx[1]  = palIdx[0];
-    palIdx[2]  = initObjPal16(cross_holePal);
-    palIdx[3]  = palIdx[0];
-    palIdx[4]  = initObjPal16(slider_l_holePal);
-    palIdx[5]  = palIdx[4];
-    palIdx[6]  = palIdx[4];
-    palIdx[7]  = palIdx[4];
-    palIdx[8]  = initObjPal16(trianglePal);
-    palIdx[9]  = initObjPal16(circlePal);
-    palIdx[10] = initObjPal16(crossPal);
-    palIdx[11] = initObjPal16(squarePal);
-    palIdx[12] = initObjPal16(slider_lPal);
-    palIdx[13] = initObjPal16(slider_rPal);
-    palIdx[14] = initObjPal16(slider_lhPal);
-    palIdx[15] = initObjPal16(slider_rhPal);
-    palIdx[16] = initObjPal16(coolPal);
-    palIdx[17] = initObjPal16(finePal);
-    palIdx[18] = initObjPal16(safePal);
-    palIdx[19] = initObjPal16(sadPal);
-    palIdx[20] = initObjPal16(missPal);
+    gfx[0]  = initObjBitmap(triangle_holeBitmap,  triangle_holeBitmapLen,  SpriteSize_32x32);
+    gfx[1]  = initObjBitmap(circle_holeBitmap,    circle_holeBitmapLen,    SpriteSize_32x32);
+    gfx[2]  = initObjBitmap(cross_holeBitmap,     cross_holeBitmapLen,     SpriteSize_32x32);
+    gfx[3]  = initObjBitmap(square_holeBitmap,    square_holeBitmapLen,    SpriteSize_32x32);
+    gfx[4]  = initObjBitmap(slider_l_holeBitmap,  slider_l_holeBitmapLen,  SpriteSize_32x32);
+    gfx[5]  = initObjBitmap(slider_r_holeBitmap,  slider_r_holeBitmapLen,  SpriteSize_32x32);
+    gfx[6]  = initObjBitmap(slider_lh_holeBitmap, slider_lh_holeBitmapLen, SpriteSize_32x32);
+    gfx[7]  = initObjBitmap(slider_rh_holeBitmap, slider_rh_holeBitmapLen, SpriteSize_32x32);
+    gfx[8]  = initObjBitmap(triangleBitmap,       triangleBitmapLen,       SpriteSize_32x32);
+    gfx[9]  = initObjBitmap(circleBitmap,         circleBitmapLen,         SpriteSize_32x32);
+    gfx[10] = initObjBitmap(crossBitmap,          crossBitmapLen,          SpriteSize_32x32);
+    gfx[11] = initObjBitmap(squareBitmap,         squareBitmapLen,         SpriteSize_32x32);
+    gfx[12] = initObjBitmap(slider_lBitmap,       slider_lBitmapLen,       SpriteSize_32x32);
+    gfx[13] = initObjBitmap(slider_rBitmap,       slider_rBitmapLen,       SpriteSize_32x32);
+    gfx[14] = initObjBitmap(slider_lhBitmap,      slider_lhBitmapLen,      SpriteSize_32x32);
+    gfx[15] = initObjBitmap(slider_rhBitmap,      slider_rhBitmapLen,      SpriteSize_32x32);
+    gfx[16] = initObjBitmap(coolBitmap,           coolBitmapLen,           SpriteSize_32x16);
+    gfx[17] = initObjBitmap(fineBitmap,           fineBitmapLen,           SpriteSize_32x16);
+    gfx[18] = initObjBitmap(safeBitmap,           safeBitmapLen,           SpriteSize_32x16);
+    gfx[19] = initObjBitmap(sadBitmap,            sadBitmapLen,            SpriteSize_32x16);
+    gfx[20] = initObjBitmap(missBitmap,           missBitmapLen,           SpriteSize_32x16);
 
     int32_t statX = 0, statY = 0;
     int32_t statCurX = 0, statCurY = 0;
@@ -690,8 +657,8 @@ int main()
         // Draw the hit status while its timer is active
         if (statTimer > 0)
         {
-            oamSet(&oamMain, sprite++, statCurX, statCurY, 0, palIdx[16 + statType], SpriteSize_32x16,
-                SpriteColorFormat_16Color, gfx[16 + statType], 0, false, false, false, false, false);
+            oamSet(&oamMain, sprite++, statCurX, statCurY, 0, 1, SpriteSize_32x16,
+                SpriteColorFormat_Bmp, gfx[16 + statType], 0, false, false, false, false, false);
             statTimer--;
         }
 
@@ -706,8 +673,8 @@ int main()
             if (x > -32 && x < 256 && y > -32 && y < 192)
             {
                 uint8_t type = (notes[i].type & ~BIT(7)) + ((notes[i].type & BIT(7)) ? 10 : 8);
-                oamSet(&oamMain, sprite++, x, y, 0, palIdx[type], SpriteSize_32x32,
-                    SpriteColorFormat_16Color, gfx[type], 0, false, false, false, false, false);
+                oamSet(&oamMain, sprite++, x, y, 0, 1, SpriteSize_32x32,
+                    SpriteColorFormat_Bmp, gfx[type], 0, false, false, false, false, false);
             }
         }
 
@@ -715,8 +682,8 @@ int main()
         for (size_t i = 0; i < notes.size(); i++)
         {
             uint8_t type = (notes[i].type & ~BIT(7)) + ((notes[i].type & BIT(7)) ? 2 : 0);
-            oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, palIdx[type], SpriteSize_32x32,
-                SpriteColorFormat_16Color, gfx[type], 0, false, false, false, false, false);
+            oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, 1, SpriteSize_32x32,
+                SpriteColorFormat_Bmp, gfx[type], 0, false, false, false, false, false);
         }
 
         printf("\x1b[0;0HLife: %3u\n", life);
