@@ -18,7 +18,7 @@ include $(DEVKITARM)/ds_rules
 #---------------------------------------------------------------------------------
 TARGET   := $(shell basename $(CURDIR))
 BUILD    := build
-SOURCES  := source libogg/src vorbis/lib
+SOURCES  := src libogg/src vorbis/lib
 INCLUDES := include libogg/include vorbis/include vorbis/lib
 DATA     := data
 GRAPHICS := gfx

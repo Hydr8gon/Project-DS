@@ -17,20 +17,12 @@
     along with Project DS. If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <cstdio>
 #include <deque>
-#include <dirent.h>
-#include <string>
-#include <vector>
 
-#include <fat.h>
 #include <maxmod9.h>
 #include <nds.h>
-
-#include "vorbis/codec.h"
 
 #include "circle.h"
 #include "circle_hole.h"
@@ -54,10 +46,11 @@
 #include "sad.h"
 #include "miss.h"
 
+#include "game.h"
+#include "menu.h"
+
 #define PI 3.14159
 #define FRAME_TIME 1672
-
-void retry();
 
 struct Note
 {
@@ -68,28 +61,28 @@ struct Note
     uint32_t time;
 };
 
-std::deque<Note> notes;
+static std::deque<Note> notes;
 
-size_t size = 0;
-uint32_t *chart = nullptr;
-uint32_t flyTimeDef = 1750;
+static uint16_t *gameGfx[21];
 
-FILE *song = nullptr;
-mm_stream stream;
+static mm_stream stream;
+static FILE *song = nullptr;
 
-uint16_t *gfx[21];
+static size_t chartSize = 0;
+static uint32_t *chart = nullptr;
+static uint32_t flyTimeDef = 1750;
 
-uint32_t counter = 1;
-uint32_t timer = 0;
-uint32_t flyTime = flyTimeDef * 100;
-uint8_t life = 127;
-uint8_t current = 0;
-uint8_t mask = 0;
-uint8_t mask2 = 0;
-uint8_t statTimer = 0;
-bool finished = false;
+static uint32_t counter = 1;
+static uint32_t timer = 0;
+static uint32_t flyTime = flyTimeDef * 100;
+static uint8_t life = 127;
+static uint8_t current = 0;
+static uint8_t mask = 0;
+static uint8_t mask2 = 0;
+static uint8_t statTimer = 0;
+static bool finished = false;
 
-const uint8_t paramCounts[0x100] =
+static const uint8_t paramCounts[0x100] =
 {
     0,  1,  4,  2,  2,  2,  7,  4,  2,  6,  2,  1,  6,  2,  1,  1, // 0x00-0x0F
     3,  2,  3,  5,  5,  4,  4,  5,  2,  0,  2,  4,  2,  2,  1, 21, // 0x10-0x1F
@@ -100,14 +93,21 @@ const uint8_t paramCounts[0x100] =
     4,  1,  1,  3,  3,  4,  2,  3,  3,  8,  2                      // 0x60-0x6A
 };
 
-const uint16_t keys[6] =
+static const uint16_t keys[6] =
 {
     (KEY_X | KEY_UP),   (KEY_A | KEY_RIGHT), // Triangle, Circle
     (KEY_B | KEY_DOWN), (KEY_Y | KEY_LEFT),  // Cross,    Square
     KEY_L,              KEY_R                // Slider L, Slider R
 };
 
-uint16_t *initObjBitmap(const unsigned int *bitmap, size_t bitmapLen, SpriteSize size)
+static mm_word audioCallback(mm_word length, mm_addr dest, mm_stream_formats format)
+{
+    // Load more PCM samples from file
+    fread(dest, sizeof(int16_t), length * 2, song);
+    return length;
+}
+
+static uint16_t *initObjBitmap(const unsigned int *bitmap, size_t bitmapLen, SpriteSize size)
 {
     // Copy 16-color object tiles into appropriate memory, and return a pointer to the data
     uint16_t *gfx = oamAllocateGfx(&oamMain, size, SpriteColorFormat_Bmp);
@@ -115,222 +115,41 @@ uint16_t *initObjBitmap(const unsigned int *bitmap, size_t bitmapLen, SpriteSize
     return gfx;
 }
 
-mm_word audioCallback(mm_word length, mm_addr dest, mm_stream_formats format)
+void gameInit()
 {
-    // Load more PCM samples from file
-    fread(dest, sizeof(int16_t), length * 2, song);
-    return length;
+    // Prepare bitmap data for the game elements
+    gameGfx[0]  = initObjBitmap(triangle_holeBitmap,  triangle_holeBitmapLen,  SpriteSize_32x32);
+    gameGfx[1]  = initObjBitmap(circle_holeBitmap,    circle_holeBitmapLen,    SpriteSize_32x32);
+    gameGfx[2]  = initObjBitmap(cross_holeBitmap,     cross_holeBitmapLen,     SpriteSize_32x32);
+    gameGfx[3]  = initObjBitmap(square_holeBitmap,    square_holeBitmapLen,    SpriteSize_32x32);
+    gameGfx[4]  = initObjBitmap(slider_l_holeBitmap,  slider_l_holeBitmapLen,  SpriteSize_32x32);
+    gameGfx[5]  = initObjBitmap(slider_r_holeBitmap,  slider_r_holeBitmapLen,  SpriteSize_32x32);
+    gameGfx[6]  = initObjBitmap(slider_lh_holeBitmap, slider_lh_holeBitmapLen, SpriteSize_32x32);
+    gameGfx[7]  = initObjBitmap(slider_rh_holeBitmap, slider_rh_holeBitmapLen, SpriteSize_32x32);
+    gameGfx[8]  = initObjBitmap(triangleBitmap,       triangleBitmapLen,       SpriteSize_32x32);
+    gameGfx[9]  = initObjBitmap(circleBitmap,         circleBitmapLen,         SpriteSize_32x32);
+    gameGfx[10] = initObjBitmap(crossBitmap,          crossBitmapLen,          SpriteSize_32x32);
+    gameGfx[11] = initObjBitmap(squareBitmap,         squareBitmapLen,         SpriteSize_32x32);
+    gameGfx[12] = initObjBitmap(slider_lBitmap,       slider_lBitmapLen,       SpriteSize_32x32);
+    gameGfx[13] = initObjBitmap(slider_rBitmap,       slider_rBitmapLen,       SpriteSize_32x32);
+    gameGfx[14] = initObjBitmap(slider_lhBitmap,      slider_lhBitmapLen,      SpriteSize_32x32);
+    gameGfx[15] = initObjBitmap(slider_rhBitmap,      slider_rhBitmapLen,      SpriteSize_32x32);
+    gameGfx[16] = initObjBitmap(coolBitmap,           coolBitmapLen,           SpriteSize_32x16);
+    gameGfx[17] = initObjBitmap(fineBitmap,           fineBitmapLen,           SpriteSize_32x16);
+    gameGfx[18] = initObjBitmap(safeBitmap,           safeBitmapLen,           SpriteSize_32x16);
+    gameGfx[19] = initObjBitmap(sadBitmap,            sadBitmapLen,            SpriteSize_32x16);
+    gameGfx[20] = initObjBitmap(missBitmap,           missBitmapLen,           SpriteSize_32x16);
+
+    // Prepare the audio stream
+    stream.sampling_rate = 44100 / 2;
+    stream.buffer_length = 1024;
+    stream.callback      = audioCallback;
+    stream.format        = MM_STREAM_16BIT_STEREO;
+    stream.timer         = MM_TIMER0;
+    stream.manual        = true;
 }
 
-void fileBrowser()
-{
-    std::vector<std::string> files;
-    DIR *dir = opendir("/project-ds/dsc");
-    dirent *entry;
-
-    // Build a list of all DSC files in the folder
-    while ((entry = readdir(dir)))
-    {
-        std::string name = entry->d_name;
-        if (name.find(".dsc", name.length() - 4) != std::string::npos)
-            files.push_back(name);
-    }
-
-    closedir(dir);
-    sort(files.begin(), files.end());
-
-    // Ensure there are files present
-    if (files.empty())
-    {
-        printf("No DSC files found.\n");
-        printf("Place them in '/project-ds/dsc'.\n");
-
-        // Do nothing since there are no files to show
-        while (true)
-            swiWaitForVBlank();
-    }
-
-    size_t selection = 0;
-    uint8_t framesHeld = 0;
-
-    // Show the file browser
-    while (true)
-    {
-        // Calculate the offset to display the files from
-        size_t offset = 0;
-        if (files.size() > 23)
-        {
-            if (selection >= files.size() - 11)
-                offset = files.size() - 23;
-            else if (selection > 11)
-                offset = selection - 11;
-        }
-
-        // Display a section of files around the current selection
-        consoleClear();
-        for (size_t i = offset; i < offset + std::min(files.size(), 23U); i++)
-            printf((i == selection) ? "\x1b[%d;0H>%s\n" : "\x1b[%d;0H %s\n", i - offset, files[i].c_str());
-
-        uint16_t held = 0;
-
-        // Wait for button input
-        while (!held)
-        {
-            scanKeys();
-            held = keysHeld();
-            if (!held) framesHeld = 0;
-            swiWaitForVBlank();
-        }
-
-        if (held & KEY_A)
-        {
-            // Select the current file and proceed to load it
-            consoleClear();
-            break;
-        }
-        else if (held & KEY_UP)
-        {
-            // Decrement the current selection with wraparound, continuously after 30 frames
-            if ((framesHeld > 30 || framesHeld++ == 0) && selection-- == 0)
-                selection = files.size() - 1;
-        }
-        else if (held & KEY_DOWN)
-        {
-            // Increment the current selection with wraparound, continuously after 30 frames
-            if ((framesHeld > 30 || framesHeld++ == 0) && ++selection == files.size())
-                selection = 0;
-        }
-    }
-
-    // Infer names for all the files that might need to be accessed
-    std::string dscName = "/project-ds/dsc/" + files[selection];
-    std::string oggName = "/project-ds/ogg/" + files[selection].substr(0, 6) + ".ogg";
-    std::string pcmName = "/project-ds/pcm/" + files[selection].substr(0, 6) + ".pcm";
-
-    // Load the chart file into memory
-    FILE *file = fopen(dscName.c_str(), "rb");
-    fseek(file, 0, SEEK_END);
-    size = ftell(file) / 4;
-    fseek(file, 0, SEEK_SET);
-    if (chart) delete[] chart;
-    chart = new uint32_t[size];
-    fread(chart, sizeof(uint32_t), size, file);
-    fclose(file);
-
-    if (song)
-    {
-        fclose(song);
-        song = nullptr;
-    }
-
-    // Attempt to load the converted music file
-    if (!(song = fopen(pcmName.c_str(), "rb")))
-    {
-        // Attempt to load an OGG file for conversion
-        if (FILE *songOgg = fopen(oggName.c_str(), "rb"))
-        {
-            ogg_sync_state   oy;
-            ogg_stream_state os;
-            ogg_page         og;
-            ogg_packet       op;
-
-            vorbis_info      vi;
-            vorbis_comment   vc;
-            vorbis_dsp_state vd;
-            vorbis_block     vb;
-
-            // Get the file size for progress tracking
-            fseek(songOgg, 0, SEEK_END);
-            size_t sizeOgg = ftell(songOgg);
-            fseek(songOgg, 0, SEEK_SET);
-
-            // Read the first block from the OGG file
-            ogg_sync_init(&oy);
-            char *buffer = ogg_sync_buffer(&oy, 4096);
-            size_t bytes = fread(buffer, sizeof(uint8_t), 4096, songOgg);
-            ogg_sync_wrote(&oy, bytes);
-
-            // Initialize the stream and get the first page
-            ogg_sync_pageout(&oy, &og);
-            ogg_stream_init(&os, ogg_page_serialno(&og));
-            ogg_stream_pagein(&os, &og);
-            ogg_stream_packetout(&os, &op);
-
-            // Initialize the decoder with the initial header
-            vorbis_info_init(&vi);
-            vorbis_comment_init(&vc);
-            vorbis_synthesis_headerin(&vi, &vc, &op);
-            vorbis_synthesis_halfrate(&vi, 1);
-
-            printf("Converting to PCM16...\n");
-            FILE *songPcm = fopen(pcmName.c_str(), "wb");
-
-            int i = 0;
-
-            // Decode until the end of the file is reached
-            while (true)
-            {
-                // Read more blocks from the OGG file and track progress
-                if (!ogg_sync_pageout(&oy, &og))
-                {
-                    buffer = ogg_sync_buffer(&oy, 4096);
-                    bytes = fread(buffer, sizeof(uint8_t), 4096, songOgg);
-                    if (bytes == 0) break;
-                    ogg_sync_wrote(&oy, bytes);
-                    printf("\x1b[1;0H%ld%%\n", ftell(songOgg) * 100 / sizeOgg);
-                    continue;
-                }
-
-                // Get another page
-                ogg_stream_pagein(&os, &og);
-
-                while (ogg_stream_packetout(&os, &op))
-                {
-                    // Get the comment and codebook headers and finish initializing the decoder
-                    if (i < 2)
-                    {
-                        vorbis_synthesis_headerin(&vi, &vc, &op);
-                        if (++i < 2) continue;
-                        vorbis_synthesis_init(&vd, &vi);
-                        vorbis_block_init(&vd, &vb);
-                        break;
-                    }
-
-                    // Decode a packet
-                    vorbis_synthesis(&vb, &op);
-                    vorbis_synthesis_blockin(&vd, &vb);
-
-                    float **pcm;
-
-                    while (int samples = vorbis_synthesis_pcmout(&vd, &pcm))
-                    {
-                        // Convert floats and combine channels to produce stereo PCM16
-                        int16_t conv[2048];
-                        for (int j = 0; j < samples; j++)
-                        {
-                            conv[j * 2 + 0] = (pcm[0][j] + pcm[2][j]) * 32767.0f;
-                            conv[j * 2 + 1] = (pcm[1][j] + pcm[3][j]) * 32767.0f;
-                        }
-
-                        // Write the converted data to file
-                        fwrite(conv, sizeof(int16_t), samples * 2, songPcm);
-                        vorbis_synthesis_read(&vd, samples);
-                    }
-                }
-            }
-
-            fclose(songPcm);
-            fclose(songOgg);
-
-            // Open the file after decoding
-            song = fopen(pcmName.c_str(), "rb");
-            printf("Done!\n");
-            retry();
-        }
-    }
-}
-
-void retry()
+static void retryScreen()
 {
     printf("Press start to retry.\n");
     printf("Press select to return to songs.");
@@ -377,10 +196,10 @@ void retry()
     }
 }
 
-void updateChart()
+static void updateChart()
 {
     // Execute chart opcodes
-    while (counter < size && !finished)
+    while (counter < chartSize && !finished)
     {
         switch (chart[counter])
         {
@@ -463,64 +282,10 @@ void updateChart()
     }
 }
 
-int main()
+void gameLoop()
 {
-    fatInitDefault();
-    consoleDemoInit();
-
-    // Setup graphics on the main screen
-    videoSetMode(MODE_3_2D);
-    vramSetBankA(VRAM_A_MAIN_SPRITE);
-    oamInit(&oamMain, SpriteMapping_Bmp_1D_128, false);
-    BG_PALETTE[0] = 0x4210;
-
-    // Create directories in case they don't exist
-    mkdir("/project-ds",     0777);
-    mkdir("/project-ds/dsc", 0777);
-    mkdir("/project-ds/ogg", 0777);
-    mkdir("/project-ds/pcm", 0777);
-
-    // Open the file browser
+    // Open the file browser on start
     fileBrowser();
-
-    // Initialize maxmod without a soundbank
-    mm_ds_system sys;
-    sys.mod_count    = 0;
-    sys.samp_count   = 0;
-    sys.mem_bank     = 0;
-    sys.fifo_channel = FIFO_MAXMOD;
-    mmInit(&sys);
-
-    // Prepare the audio stream
-    stream.sampling_rate = 44100 / 2;
-    stream.buffer_length = 1024;
-    stream.callback      = audioCallback;
-    stream.format        = MM_STREAM_16BIT_STEREO;
-    stream.timer         = MM_TIMER0;
-    stream.manual        = true;
-
-    // Prepare the graphic tile data
-    gfx[0]  = initObjBitmap(triangle_holeBitmap,  triangle_holeBitmapLen,  SpriteSize_32x32);
-    gfx[1]  = initObjBitmap(circle_holeBitmap,    circle_holeBitmapLen,    SpriteSize_32x32);
-    gfx[2]  = initObjBitmap(cross_holeBitmap,     cross_holeBitmapLen,     SpriteSize_32x32);
-    gfx[3]  = initObjBitmap(square_holeBitmap,    square_holeBitmapLen,    SpriteSize_32x32);
-    gfx[4]  = initObjBitmap(slider_l_holeBitmap,  slider_l_holeBitmapLen,  SpriteSize_32x32);
-    gfx[5]  = initObjBitmap(slider_r_holeBitmap,  slider_r_holeBitmapLen,  SpriteSize_32x32);
-    gfx[6]  = initObjBitmap(slider_lh_holeBitmap, slider_lh_holeBitmapLen, SpriteSize_32x32);
-    gfx[7]  = initObjBitmap(slider_rh_holeBitmap, slider_rh_holeBitmapLen, SpriteSize_32x32);
-    gfx[8]  = initObjBitmap(triangleBitmap,       triangleBitmapLen,       SpriteSize_32x32);
-    gfx[9]  = initObjBitmap(circleBitmap,         circleBitmapLen,         SpriteSize_32x32);
-    gfx[10] = initObjBitmap(crossBitmap,          crossBitmapLen,          SpriteSize_32x32);
-    gfx[11] = initObjBitmap(squareBitmap,         squareBitmapLen,         SpriteSize_32x32);
-    gfx[12] = initObjBitmap(slider_lBitmap,       slider_lBitmapLen,       SpriteSize_32x32);
-    gfx[13] = initObjBitmap(slider_rBitmap,       slider_rBitmapLen,       SpriteSize_32x32);
-    gfx[14] = initObjBitmap(slider_lhBitmap,      slider_lhBitmapLen,      SpriteSize_32x32);
-    gfx[15] = initObjBitmap(slider_rhBitmap,      slider_rhBitmapLen,      SpriteSize_32x32);
-    gfx[16] = initObjBitmap(coolBitmap,           coolBitmapLen,           SpriteSize_32x16);
-    gfx[17] = initObjBitmap(fineBitmap,           fineBitmapLen,           SpriteSize_32x16);
-    gfx[18] = initObjBitmap(safeBitmap,           safeBitmapLen,           SpriteSize_32x16);
-    gfx[19] = initObjBitmap(sadBitmap,            sadBitmapLen,            SpriteSize_32x16);
-    gfx[20] = initObjBitmap(missBitmap,           missBitmapLen,           SpriteSize_32x16);
 
     int32_t statX = 0, statY = 0;
     int32_t statCurX = 0, statCurY = 0;
@@ -658,7 +423,7 @@ int main()
         if (statTimer > 0)
         {
             oamSet(&oamMain, sprite++, statCurX, statCurY, 0, 1, SpriteSize_32x16,
-                SpriteColorFormat_Bmp, gfx[16 + statType], 0, false, false, false, false, false);
+                SpriteColorFormat_Bmp, gameGfx[16 + statType], 0, false, false, false, false, false);
             statTimer--;
         }
 
@@ -674,7 +439,7 @@ int main()
             {
                 uint8_t type = (notes[i].type & ~BIT(7)) + ((notes[i].type & BIT(7)) ? 10 : 8);
                 oamSet(&oamMain, sprite++, x, y, 0, 1, SpriteSize_32x32,
-                    SpriteColorFormat_Bmp, gfx[type], 0, false, false, false, false, false);
+                    SpriteColorFormat_Bmp, gameGfx[type], 0, false, false, false, false, false);
             }
         }
 
@@ -683,7 +448,7 @@ int main()
         {
             uint8_t type = (notes[i].type & ~BIT(7)) + ((notes[i].type & BIT(7)) ? 2 : 0);
             oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, 1, SpriteSize_32x32,
-                SpriteColorFormat_Bmp, gfx[type], 0, false, false, false, false, false);
+                SpriteColorFormat_Bmp, gameGfx[type], 0, false, false, false, false, false);
         }
 
         printf("\x1b[0;0HLife: %3u\n", life);
@@ -696,19 +461,37 @@ int main()
         // Check the end conditions
         if (down & KEY_START)
         {
-            retry();
+            retryScreen();
         }
         else if (life == 0)
         {
             printf("FAILED...\n");
-            retry();
+            retryScreen();
         }
         else if (finished && notes.empty())
         {
             printf("CLEAR!\n");
-            retry();
+            retryScreen();
         }
     }
+}
 
-    return 0;
+void loadChart(FILE *newChart, FILE *newSong, bool retry)
+{
+    // Load a new chart file into memory
+    fseek(newChart, 0, SEEK_END);
+    chartSize = ftell(newChart) / 4;
+    fseek(newChart, 0, SEEK_SET);
+    if (chart) delete[] chart;
+    chart = new uint32_t[chartSize];
+    fread(chart, sizeof(uint32_t), chartSize, newChart);
+    fclose(newChart);
+
+    // Load a new song file
+    if (song) fclose(song);
+    song = newSong;
+
+    // Show the retry screen if requested
+    if (retry)
+        retryScreen();
 }
