@@ -29,6 +29,9 @@
 
 #include "vorbis/codec.h"
 
+static size_t difficulty = 1;
+static size_t selection = 0;
+
 static bool convertSong(std::string &src, std::string &dst)
 {
     // Attempt to load an OGG file for conversion
@@ -136,23 +139,40 @@ static bool convertSong(std::string &src, std::string &dst)
 
 void fileBrowser()
 {
-    std::vector<std::string> files;
+    std::vector<std::string> charts[5];
+
     DIR *dir = opendir("/project-ds/dsc");
     dirent *entry;
 
-    // Build a list of all DSC files in the folder
+    static const std::string ends[] =
+    {
+        "_easy.dsc",
+        "_normal.dsc",
+        "_hard.dsc",
+        "_extreme.dsc",
+        "_extreme_1.dsc",
+    };
+
+    // Sort DSC files based on their difficulty suffix
     while ((entry = readdir(dir)))
     {
         std::string name = entry->d_name;
-        if (name.find(".dsc", name.length() - 4) != std::string::npos)
-            files.push_back(name);
+        for (int i = 0; i < 5; i++)
+        {
+            if (name.length() > ends[i].length() && name.find(ends[i], name.length() - ends[i].length()) != std::string::npos)
+            {
+                charts[i].push_back(name.substr(0, name.length() - ends[i].length()));
+                break;
+            }
+        }
     }
 
     closedir(dir);
-    sort(files.begin(), files.end());
+    for (int i = 0; i < 5; i++)
+        sort(charts[i].begin(), charts[i].end());
 
     // Ensure there are files present
-    if (files.empty())
+    if (charts[0].empty() && charts[1].empty() && charts[2].empty() && charts[3].empty() && charts[4].empty())
     {
         printf("No DSC files found.\n");
         printf("Place them in '/project-ds/dsc'.\n");
@@ -162,26 +182,31 @@ void fileBrowser()
             swiWaitForVBlank();
     }
 
-    size_t selection = 0;
-    uint8_t framesHeld = 0;
+    uint8_t frames = 0;
 
     // Show the file browser
     while (true)
     {
         // Calculate the offset to display the files from
         size_t offset = 0;
-        if (files.size() > 23)
+        if (charts[difficulty].size() > 21)
         {
-            if (selection >= files.size() - 11)
-                offset = files.size() - 23;
-            else if (selection > 11)
-                offset = selection - 11;
+            if (selection >= charts[difficulty].size() - 10)
+                offset = charts[difficulty].size() - 21;
+            else if (selection > 10)
+                offset = selection - 10;
         }
 
-        // Display a section of files around the current selection
+        static const char a[] = {' ', '>'};
         consoleClear();
-        for (size_t i = offset; i < offset + std::min(files.size(), 23U); i++)
-            printf((i == selection) ? "\x1b[%d;0H>%s\n" : "\x1b[%d;0H %s\n", i - offset, files[i].c_str());
+
+        // Display a section of files around the current selection
+        for (size_t i = offset; i < offset + std::min(charts[difficulty].size(), 21U); i++)
+            printf("\x1b[%d;0H%c%s\n", i - offset, a[i == selection], charts[difficulty][i].c_str());
+
+        // Display the difficulty tabs
+        printf("\x1b[22;0H%cEasy %cNormal %cHard %cExtrm %cExEx", a[difficulty == 0],
+            a[difficulty == 1], a[difficulty == 2], a[difficulty == 3], a[difficulty == 4]);
 
         uint16_t held = 0;
 
@@ -190,34 +215,57 @@ void fileBrowser()
         {
             scanKeys();
             held = keysHeld();
-            if (!held) framesHeld = 0;
+            if (!held) frames = 0;
             swiWaitForVBlank();
         }
 
         if (held & KEY_A)
         {
             // Select the current file and proceed to load it
-            consoleClear();
-            break;
+            if (!charts[difficulty].empty())
+            {
+                consoleClear();
+                break;
+            }
         }
         else if (held & KEY_UP)
         {
             // Decrement the current selection with wraparound, continuously after 30 frames
-            if ((framesHeld > 30 || framesHeld++ == 0) && selection-- == 0)
-                selection = files.size() - 1;
+            if ((frames > 30 || frames++ == 0) && selection-- == 0)
+                selection = charts[difficulty].size() - 1;
         }
         else if (held & KEY_DOWN)
         {
             // Increment the current selection with wraparound, continuously after 30 frames
-            if ((framesHeld > 30 || framesHeld++ == 0) && ++selection == files.size())
+            if ((frames > 30 || frames++ == 0) && ++selection == charts[difficulty].size())
                 selection = 0;
+        }
+        else if (held & KEY_LEFT)
+        {
+            // Move the difficulty selection left with wraparound
+            if (frames++ == 0)
+            {
+                selection = 0;
+                if (difficulty-- == 0)
+                    difficulty = 4;
+            }
+        }
+        else if (held & KEY_RIGHT)
+        {
+            // Move the difficulty selection right with wraparound
+            if (frames++ == 0)
+            {
+                selection = 0;
+                if (++difficulty == 5)
+                    difficulty = 0;
+            }
         }
     }
 
     // Infer names for all the files that might need to be accessed
-    std::string dscName = "/project-ds/dsc/" + files[selection];
-    std::string oggName = "/project-ds/ogg/" + files[selection].substr(0, 6) + ".ogg";
-    std::string pcmName = "/project-ds/pcm/" + files[selection].substr(0, 6) + ".pcm";
+    std::string dscName = "/project-ds/dsc/" + charts[difficulty][selection] + ends[difficulty];
+    std::string oggName = "/project-ds/ogg/" + charts[difficulty][selection] + ".ogg";
+    std::string pcmName = "/project-ds/pcm/" + charts[difficulty][selection] + ".pcm";
 
     // Open the chart and converted song files
     FILE *chart = fopen(dscName.c_str(), "rb");
