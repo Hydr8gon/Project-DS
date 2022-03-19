@@ -1,0 +1,31 @@
+NAME     := converter
+BUILD    := build-conv
+SOURCES  := src-conv libogg/src vorbis/lib
+ARGS     := -O2
+INCLUDES := -Ilibogg/include -Ivorbis/include -Ivorbis/lib
+
+CFILES   := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.c))
+CPPFILES := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.cpp))
+HFILES   := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.h))
+OFILES   := $(patsubst %.c,$(BUILD)/%.o,$(CFILES)) $(patsubst %.cpp,$(BUILD)/%.o,$(CPPFILES))
+
+all: $(NAME)
+
+$(NAME): $(OFILES)
+	g++ -o $@ $(ARGS) $^
+
+$(BUILD)/%.o: %.c $(HFILES) $(BUILD)
+	gcc -c -o $@ $(ARGS) $(INCLUDES) $<
+
+$(BUILD)/%.o: %.cpp $(HFILES) $(BUILD)
+	g++ -c -o $@ $(ARGS) $(INCLUDES) $<
+
+$(BUILD):
+	for dir in $(SOURCES); \
+	do \
+	mkdir -p $(BUILD)/$$dir; \
+	done
+
+clean:
+	rm -rf $(BUILD)
+	rm -f $(NAME)

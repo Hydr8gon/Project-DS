@@ -1,3 +1,6 @@
 /build
+/build-conv
+/converter
+/converter.exe
 /Project-DS.elf
 /Project-DS.nds
