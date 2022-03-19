@@ -1,0 +1,80 @@
+name: Automatic Builds
+
+on:
+  push:
+    branches:
+    - master
+
+jobs:
+  build-rom:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkitarm:latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v1
+    - name: Compile
+      run: make -j$(nproc)
+    - name: Upload
+      uses: actions/upload-artifact@v2
+      with:
+        name: rom
+        path: project-ds.nds
+
+  build-converter:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v1
+    - name: Install MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+    - name: Install build tools
+      run: pacman -S mingw-w64-x86_64-gcc make --noconfirm
+      shell: msys2 {0}
+    - name: Compile
+      run: |
+        make -f Makefile.conv -j$(nproc)
+        strip converter.exe
+      shell: msys2 {0}
+      working-directory: ${{ github.workspace }}
+    - name: Upload
+      uses: actions/upload-artifact@v2
+      with:
+        name: converter
+        path: converter.exe
+
+  update-release:
+    runs-on: ubuntu-latest
+    needs: [build-rom, build-converter]
+
+    steps:
+    - name: Delete old release
+      uses: dev-drprasad/delete-tag-and-release@v0.2.0
+      with:
+        delete_release: true
+        tag_name: release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Get artifacts
+      uses: actions/download-artifact@v2
+    - name: Package artifacts
+      run: |
+        mkdir project-ds
+        mkdir project-ds/dsc
+        mkdir project-ds/ogg
+        mkdir project-ds/pcm
+        mv rom/project-ds.nds .
+        mv converter/converter.exe project-ds
+        zip -r project-ds.zip project-ds.nds project-ds
+    - name: Create new release
+      uses: ncipollo/release-action@v1
+      with:
+        name: Rolling Release
+        body: These are automatically updated builds of the latest commit.
+        artifacts: project-ds.zip
+        tag: release
+        token: ${{ secrets.GITHUB_TOKEN }}

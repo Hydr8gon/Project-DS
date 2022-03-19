@@ -16,7 +16,7 @@ include $(DEVKITARM)/ds_rules
 # DATA is a list of directories containing binary files embedded using bin2o
 # GRAPHICS is a list of directories containing image files to be converted with grit
 #---------------------------------------------------------------------------------
-TARGET   := $(shell basename $(CURDIR))
+TARGET   := project-ds
 BUILD    := build
 SOURCES  := src libogg/src vorbis/lib
 INCLUDES := include libogg/include vorbis/include vorbis/lib

@@ -4,6 +4,10 @@ SOURCES  := src-conv libogg/src vorbis/lib
 ARGS     := -O2
 INCLUDES := -Ilibogg/include -Ivorbis/include -Ivorbis/lib
 
+ifeq ($(OS),Windows_NT)
+  ARGS += -static -DWINDOWS
+endif
+
 CFILES   := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.c))
 CPPFILES := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.cpp))
 HFILES   := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.h))

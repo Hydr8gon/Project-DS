@@ -53,7 +53,13 @@ int main()
 
     closedir(dir);
     sort(files.begin(), files.end());
+
+    // Create the destination folder if it doesn't exist
+#ifdef WINDOWS
+    mkdir("pcm");
+#else
     mkdir("pcm", 0777);
+#endif
 
     for (size_t k = 0; k < files.size(); k++)
     {
