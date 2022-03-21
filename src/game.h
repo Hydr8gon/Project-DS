@@ -20,11 +20,11 @@
 #ifndef GAME_H
 #define GAME_H
 
-#include <cstdio>
+#include <string>
 
 extern void gameInit();
 extern void gameLoop();
 
-extern void loadChart(FILE *newChart, FILE *newSong, bool retry);
+extern void loadChart(std::string &chartName, std::string &songName, bool retry);
 
 #endif // GAME_H

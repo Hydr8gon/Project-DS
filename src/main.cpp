@@ -22,6 +22,7 @@
 #include <nds.h>
 #include <sys/stat.h>
 
+#include "audio.h"
 #include "game.h"
 #include "menu.h"
 
@@ -50,8 +51,11 @@ int main()
     sys.fifo_channel = FIFO_MAXMOD;
     mmInit(&sys);
 
-    // Run the game
+    // Initialize the game
+    audioInit();
     gameInit();
+
+    // Run the game
     gameLoop();
 
     return 0;

@@ -17,9 +17,17 @@
     along with Project DS. If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef MENU_H
-#define MENU_H
+#ifndef AUDIO_H
+#define AUDIO_H
 
-extern void songSelector();
+#include <string>
 
-#endif // MENU_H
+extern void audioInit();
+
+extern void playSong(std::string &name);
+extern void updateSong();
+extern void stopSong();
+
+extern bool convertSong(std::string &src, std::string &dst);
+
+#endif // AUDIO_H

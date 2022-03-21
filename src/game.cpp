@@ -21,7 +21,6 @@
 #include <cstdint>
 #include <deque>
 
-#include <maxmod9.h>
 #include <nds.h>
 
 #include "circle.h"
@@ -47,6 +46,7 @@
 #include "miss.h"
 
 #include "game.h"
+#include "audio.h"
 #include "menu.h"
 
 #define PI 3.14159
@@ -65,8 +65,7 @@ static std::deque<Note> notes;
 
 static uint16_t *gameGfx[21];
 
-static mm_stream stream;
-static FILE *song = nullptr;
+static std::string songName;
 
 static size_t chartSize = 0;
 static uint32_t *chart = nullptr;
@@ -100,13 +99,6 @@ static const uint16_t keys[6] =
     KEY_L,              KEY_R                // Slider L, Slider R
 };
 
-static mm_word audioCallback(mm_word length, mm_addr dest, mm_stream_formats format)
-{
-    // Load more PCM samples from file
-    fread(dest, sizeof(int16_t), length * 2, song);
-    return length;
-}
-
 static uint16_t *initObjBitmap(const unsigned int *bitmap, size_t bitmapLen, SpriteSize size)
 {
     // Copy 16-color object tiles into appropriate memory, and return a pointer to the data
@@ -139,22 +131,14 @@ void gameInit()
     gameGfx[18] = initObjBitmap(safeBitmap,           safeBitmapLen,           SpriteSize_32x16);
     gameGfx[19] = initObjBitmap(sadBitmap,            sadBitmapLen,            SpriteSize_32x16);
     gameGfx[20] = initObjBitmap(missBitmap,           missBitmapLen,           SpriteSize_32x16);
-
-    // Prepare the audio stream
-    stream.sampling_rate = 44100 / 2;
-    stream.buffer_length = 1024;
-    stream.callback      = audioCallback;
-    stream.format        = MM_STREAM_16BIT_STEREO;
-    stream.timer         = MM_TIMER0;
-    stream.manual        = true;
 }
 
 static void retryScreen()
 {
+    stopSong();
     printf("Press start to retry.\n");
     printf("Press select to return to songs.");
     printf("Press dpad to adjust fly time.\n");
-    mmStreamClose();
 
     // Show the retry screen
     while (true)
@@ -173,16 +157,15 @@ static void retryScreen()
         else if ((down & KEY_DOWN) && flyTimeDef > 500)
             flyTimeDef -= 50;
 
-        // Open the file browser on select, or reset the chart on start
+        // Open the song selector on select, or reset the chart on start
         if (down & KEY_SELECT)
-            fileBrowser();
+            songSelector();
         else if (!(down & KEY_START))
             continue;
 
         // Reset the current chart
         consoleClear();
         notes.clear();
-        fseek(song, 0, SEEK_SET);
         counter = 1;
         timer = 0;
         flyTime = flyTimeDef * 100;
@@ -263,9 +246,8 @@ static void updateChart()
 
             case 0x19: // Music play
             {
-                // Start the audio stream if a file is loaded
-                if (song)
-                    mmStreamOpen(&stream);
+                // Start playing the song
+                playSong(songName);
                 break;
             }
 
@@ -285,7 +267,7 @@ static void updateChart()
 void gameLoop()
 {
     // Open the file browser on start
-    fileBrowser();
+    songSelector();
 
     int32_t statX = 0, statY = 0;
     int32_t statCurX = 0, statCurY = 0;
@@ -294,7 +276,7 @@ void gameLoop()
     while (true)
     {
         // Update the song and chart
-        mmStreamUpdate();
+        updateSong();
         updateChart();
 
         oamClear(&oamMain, 0, 0);
@@ -476,20 +458,20 @@ void gameLoop()
     }
 }
 
-void loadChart(FILE *newChart, FILE *newSong, bool retry)
+void loadChart(std::string &chartName, std::string &songName2, bool retry)
 {
     // Load a new chart file into memory
-    fseek(newChart, 0, SEEK_END);
-    chartSize = ftell(newChart) / 4;
-    fseek(newChart, 0, SEEK_SET);
+    FILE *chartFile = fopen(chartName.c_str(), "rb");
+    fseek(chartFile, 0, SEEK_END);
+    chartSize = ftell(chartFile) / 4;
+    fseek(chartFile, 0, SEEK_SET);
     if (chart) delete[] chart;
     chart = new uint32_t[chartSize];
-    fread(chart, sizeof(uint32_t), chartSize, newChart);
-    fclose(newChart);
+    fread(chart, sizeof(uint32_t), chartSize, chartFile);
+    fclose(chartFile);
 
-    // Load a new song file
-    if (song) fclose(song);
-    song = newSong;
+    // Set the chart's song filename
+    songName = songName2;
 
     // Show the retry screen if requested
     if (retry)
