@@ -226,11 +226,13 @@ static void updateChart()
                     break;
                 }
 
-                // Calculate the note increment and offset based on angle and speed
-                float angle = (int32_t)chart[counter + 4];
-                angle = angle * PI / 180000;
-                note.incX = (int)(sin(angle) *  0x100);
-                note.incY = (int)(cos(angle) * -0x100);
+                // Get the note angle and travel distance, scaled
+                float angle = (float)(int32_t)chart[counter + 4] * PI / 180000;
+                float distance = (float)chart[counter + 5] * 256 / 270000;
+
+                // Calculate the positional offset and per-frame increment
+                note.incX = (int)(sin(angle) *  distance);
+                note.incY = (int)(cos(angle) * -distance);
                 note.ofsX = note.incX * 60 * 3;
                 note.ofsY = note.incY * 60 * 3;
                 note.incX *= 100000.0f * 3 / flyTime;

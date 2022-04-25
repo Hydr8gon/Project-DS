@@ -139,8 +139,10 @@ TIME opcode between them) become multi-notes. Parameter 1 is the note type;
 known types are listed below. Parameter 2 is the X-coordinate; horizontal
 screen space seems to span 0 to 480000. Parameter 3 is the Y-coordinate;
 vertical screen space seems to span 0 to 270000. Parameter 4 is the angle the
-note should fly in from, relative to its coordinates; it spans -180000 to
-180000 clockwise, with 0 at the top. Parameters 5 to 7 are unknown.
+note flies in from, relative to its coordinates; it spans -180000 to 180000
+clockwise, with 0 at the top. Parameter 5 is the distance the note travels while
+flying; higher values mean faster travel to reach the destination in the same
+time. Parameters 6 and 7 are related to note wobble when flying in.
 
  Type | Name
 ------+------
