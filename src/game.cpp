@@ -39,6 +39,7 @@
 #include "slider_rh.h"
 #include "slider_r_hole.h"
 #include "slider_rh_hole.h"
+#include "arrow.h"
 #include "cool.h"
 #include "fine.h"
 #include "safe.h"
@@ -58,12 +59,14 @@ struct Note
     int32_t x, y;
     int32_t incX, incY;
     int32_t ofsX, ofsY;
+    uint16_t incArrow;
+    uint16_t ofsArrow;
     uint32_t time;
 };
 
 static std::deque<Note> notes;
 
-static uint16_t *gameGfx[21];
+static uint16_t *gameGfx[22];
 
 static std::string songName;
 
@@ -126,11 +129,12 @@ void gameInit()
     gameGfx[13] = initObjBitmap(slider_rBitmap,       slider_rBitmapLen,       SpriteSize_32x32);
     gameGfx[14] = initObjBitmap(slider_lhBitmap,      slider_lhBitmapLen,      SpriteSize_32x32);
     gameGfx[15] = initObjBitmap(slider_rhBitmap,      slider_rhBitmapLen,      SpriteSize_32x32);
-    gameGfx[16] = initObjBitmap(coolBitmap,           coolBitmapLen,           SpriteSize_32x16);
-    gameGfx[17] = initObjBitmap(fineBitmap,           fineBitmapLen,           SpriteSize_32x16);
-    gameGfx[18] = initObjBitmap(safeBitmap,           safeBitmapLen,           SpriteSize_32x16);
-    gameGfx[19] = initObjBitmap(sadBitmap,            sadBitmapLen,            SpriteSize_32x16);
-    gameGfx[20] = initObjBitmap(missBitmap,           missBitmapLen,           SpriteSize_32x16);
+    gameGfx[16] = initObjBitmap(arrowBitmap,          arrowBitmapLen,          SpriteSize_32x32);
+    gameGfx[17] = initObjBitmap(coolBitmap,           coolBitmapLen,           SpriteSize_32x16);
+    gameGfx[18] = initObjBitmap(fineBitmap,           fineBitmapLen,           SpriteSize_32x16);
+    gameGfx[19] = initObjBitmap(safeBitmap,           safeBitmapLen,           SpriteSize_32x16);
+    gameGfx[20] = initObjBitmap(sadBitmap,            sadBitmapLen,            SpriteSize_32x16);
+    gameGfx[21] = initObjBitmap(missBitmap,           missBitmapLen,           SpriteSize_32x16);
 }
 
 static void retryScreen()
@@ -228,7 +232,7 @@ static void updateChart()
 
                 // Get the note angle and travel distance, scaled
                 float angle = (float)(int32_t)chart[counter + 4] * PI / 180000;
-                float distance = (float)chart[counter + 5] * 256 / 270000;
+                float distance = (float)chart[counter + 5] * 0x100 / 270000;
 
                 // Calculate the positional offset and per-frame increment
                 note.incX = (int)(sin(angle) *  distance);
@@ -237,6 +241,10 @@ static void updateChart()
                 note.ofsY = note.incY * 60 * 3;
                 note.incX *= 100000.0f * 3 / flyTime;
                 note.incY *= 100000.0f * 3 / flyTime;
+
+                // Calculate the timing arrow per-frame increment
+                note.incArrow = ((float)DEGREES_IN_CIRCLE / 60) * 100000 / flyTime;
+                note.ofsArrow = 0;
 
                 // Add a note to the queue
                 note.x = chart[counter + 2] * 256 / 480000 - 16;
@@ -283,6 +291,7 @@ void gameLoop()
 
         oamClear(&oamMain, 0, 0);
         int sprite = 0;
+        int rotscale = 0;
 
         scanKeys();
         uint16_t held = keysHeld();
@@ -407,7 +416,7 @@ void gameLoop()
         if (statTimer > 0)
         {
             oamSet(&oamMain, sprite++, statCurX, statCurY, 0, 1, SpriteSize_32x16,
-                SpriteColorFormat_Bmp, gameGfx[16 + statType], 0, false, false, false, false, false);
+                SpriteColorFormat_Bmp, gameGfx[17 + statType], -1, false, false, false, false, false);
             statTimer--;
         }
 
@@ -423,18 +432,39 @@ void gameLoop()
             {
                 uint8_t type = (notes[i].type & ~BIT(7)) + ((notes[i].type & BIT(7)) ? 10 : 8);
                 oamSet(&oamMain, sprite++, x, y, 0, 1, SpriteSize_32x32,
-                    SpriteColorFormat_Bmp, gameGfx[type], 0, false, false, false, false, false);
+                    SpriteColorFormat_Bmp, gameGfx[type], -1, false, false, false, false, false);
             }
         }
 
         // Draw holes for all queued notes
         for (size_t i = 0; i < notes.size(); i++)
         {
-            uint8_t type = (notes[i].type & ~BIT(7)) + ((notes[i].type & BIT(7)) ? 2 : 0);
-            oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, 1, SpriteSize_32x32,
-                SpriteColorFormat_Bmp, gameGfx[type], 0, false, false, false, false, false);
+            if (notes[i].type & BIT(7)) // Held slides
+            {
+                // Draw a held slide note hole with no timing arrow
+                oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, 1, SpriteSize_32x32,
+                    SpriteColorFormat_Bmp, gameGfx[notes[i].type - 0x7E], -1, false, false, false, false, false);
+            }
+            else
+            {
+                // Move the timing arrow further along its rotation
+                uint16_t angle = (notes[i].ofsArrow -= notes[i].incArrow);
+
+                // Draw the timing arrow if rotscale objects are still available
+                if (rotscale < 32)
+                {
+                    oamRotateScale(&oamMain, rotscale, angle, intToFixed(1, 8), intToFixed(1, 8));
+                    oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, 1, SpriteSize_32x32,
+                        SpriteColorFormat_Bmp, gameGfx[16], rotscale++, false, false, false, false, false);
+                }
+
+                // Draw a regular note hole
+                oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, 1, SpriteSize_32x32,
+                    SpriteColorFormat_Bmp, gameGfx[notes[i].type], -1, false, false, false, false, false);
+            }
         }
 
+        // Show the life gauge on the bottom screen
         printf("\x1b[0;0HLife: %3u\n", life);
 
         // Move to the next frame
