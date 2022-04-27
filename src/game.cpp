@@ -45,6 +45,7 @@
 #include "safe.h"
 #include "sad.h"
 #include "miss.h"
+#include "combo_nums.h"
 
 #include "game.h"
 #include "audio.h"
@@ -67,6 +68,7 @@ struct Note
 static std::deque<Note> notes;
 
 static uint16_t *gameGfx[22];
+static uint16_t *numGfx[10];
 
 static std::string songName;
 
@@ -77,12 +79,15 @@ static uint32_t flyTimeDef = 1750;
 static uint32_t counter = 1;
 static uint32_t timer = 0;
 static uint32_t flyTime = flyTimeDef * 100;
-static uint8_t life = 127;
+static bool finished = false;
+
 static uint8_t current = 0;
 static uint8_t mask = 0;
 static uint8_t mask2 = 0;
 static uint8_t statTimer = 0;
-static bool finished = false;
+
+static uint32_t combo = 0;
+static uint8_t life = 127;
 
 static const uint8_t paramCounts[0x100] =
 {
@@ -112,7 +117,7 @@ static uint16_t *initObjBitmap(const unsigned int *bitmap, size_t bitmapLen, Spr
 
 void gameInit()
 {
-    // Prepare bitmap data for the game elements
+    // Allocate bitmap data for the game objects
     gameGfx[0]  = initObjBitmap(triangle_holeBitmap,  triangle_holeBitmapLen,  SpriteSize_32x32);
     gameGfx[1]  = initObjBitmap(circle_holeBitmap,    circle_holeBitmapLen,    SpriteSize_32x32);
     gameGfx[2]  = initObjBitmap(cross_holeBitmap,     cross_holeBitmapLen,     SpriteSize_32x32);
@@ -130,11 +135,16 @@ void gameInit()
     gameGfx[14] = initObjBitmap(slider_lhBitmap,      slider_lhBitmapLen,      SpriteSize_32x32);
     gameGfx[15] = initObjBitmap(slider_rhBitmap,      slider_rhBitmapLen,      SpriteSize_32x32);
     gameGfx[16] = initObjBitmap(arrowBitmap,          arrowBitmapLen,          SpriteSize_32x32);
-    gameGfx[17] = initObjBitmap(coolBitmap,           coolBitmapLen,           SpriteSize_32x16);
-    gameGfx[18] = initObjBitmap(fineBitmap,           fineBitmapLen,           SpriteSize_32x16);
-    gameGfx[19] = initObjBitmap(safeBitmap,           safeBitmapLen,           SpriteSize_32x16);
-    gameGfx[20] = initObjBitmap(sadBitmap,            sadBitmapLen,            SpriteSize_32x16);
-    gameGfx[21] = initObjBitmap(missBitmap,           missBitmapLen,           SpriteSize_32x16);
+    gameGfx[17] = initObjBitmap(coolBitmap,           coolBitmapLen,           SpriteSize_32x8);
+    gameGfx[18] = initObjBitmap(fineBitmap,           fineBitmapLen,           SpriteSize_32x8);
+    gameGfx[19] = initObjBitmap(safeBitmap,           safeBitmapLen,           SpriteSize_32x8);
+    gameGfx[20] = initObjBitmap(sadBitmap,            sadBitmapLen,            SpriteSize_32x8);
+    gameGfx[21] = initObjBitmap(missBitmap,           missBitmapLen,           SpriteSize_32x8);
+
+    // Allocate bitmap data for the combo numbers
+    size_t len = combo_numsBitmapLen / 10;
+    for (int i = 0; i < 10; i++)
+        numGfx[i] = initObjBitmap(&combo_numsBitmap[i * len / sizeof(int)], len, SpriteSize_8x8);
 }
 
 static void retryScreen()
@@ -173,12 +183,13 @@ static void retryScreen()
         counter = 1;
         timer = 0;
         flyTime = flyTimeDef * 100;
-        life = 127;
+        finished = false;
         current = 0;
         mask = 0;
         mask2 = 0;
         statTimer = 0;
-        finished = false;
+        combo = 0;
+        life = 127;
         return;
     }
 }
@@ -337,6 +348,7 @@ void gameLoop()
                         statTimer = 60;
                         statCurX = statX;
                         statCurY = statY;
+                        combo = 0;
                         life = std::max(0, life - 20);
 
                         // Clear notes that were missed
@@ -364,20 +376,24 @@ void gameLoop()
                         if (offset <= FRAME_TIME * 3)
                         {
                             statType = 0; // Cool
+                            combo++;
                             life = std::min(255, life + 2);
                         }
                         else if (offset <= FRAME_TIME * 6)
                         {
                             statType = 1; // Fine
+                            combo++;
                             life = std::min(255, life + 1);
                         }
                         else if (offset <= FRAME_TIME * 9)
                         {
                             statType = 2; // Safe
+                            combo = 0;
                         }
                         else
                         {
                             statType = 3; // Sad
+                            combo = 0;
                             life = std::max(0, life - 10);
                         }
 
@@ -401,6 +417,7 @@ void gameLoop()
                         statTimer = 60;
                         statCurX = statX;
                         statCurY = statY;
+                        combo = 0;
                         life = std::max(0, life - 20);
                     }
 
@@ -415,8 +432,29 @@ void gameLoop()
         // Draw the hit status while its timer is active
         if (statTimer > 0)
         {
-            oamSet(&oamMain, sprite++, statCurX, statCurY, 0, 1, SpriteSize_32x16,
+            int32_t x = 32;
+
+            // Draw the combo counter if a combo is ongoing
+            if (combo > 1)
+            {
+                // Adjust status offset to keep centered with combo numbers
+                x <<= 1;
+                for (uint32_t c = combo; c > 0; c /= 10)
+                    x += 7; // 3.5 (half of number width)
+                x >>= 1;
+
+                // Draw a number for each decimal place in the combo counter
+                for (uint32_t c = combo; c > 0; c /= 10)
+                {
+                    oamSet(&oamMain, sprite++, statCurX + (x -= 7), statCurY, 0, 1, SpriteSize_8x8,
+                        SpriteColorFormat_Bmp, numGfx[c % 10], -1, false, false, false, false, false);
+                }
+            }
+
+            // Draw the accuracy indicator to the left of the combo counter
+            oamSet(&oamMain, sprite++, statCurX + x - 32, statCurY, 0, 1, SpriteSize_32x8,
                 SpriteColorFormat_Bmp, gameGfx[17 + statType], -1, false, false, false, false, false);
+
             statTimer--;
         }
 
