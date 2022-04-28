@@ -219,6 +219,7 @@ static void updateChart()
             case 0x06: // Target
             {
                 static Note note;
+                int32_t x = chart[counter + 2] * 256 / 480000 - 16;
                 int32_t y = chart[counter + 3] * 192 / 270000 - 16;
 
                 // Set the note type
@@ -230,11 +231,21 @@ static void updateChart()
                 {
                     note.type = chart[counter + 1] - 8;
                 }
-                else if (chart[counter + 1] == 15 || chart[counter + 1] == 16) // Held slides
+                else if (chart[counter + 1] == 15) // Left held slide
                 {
-                    // Unless a new slide is starting, mark the note with an extra bit
-                    uint8_t type = chart[counter + 1] - 11;
-                    note.type = type | ((type == (note.type & ~BIT(7)) && y == note.y) << 7);
+                    // Mark all held slides with bit 6, and non-initial ones with bit 7
+                    uint8_t type = 4 | BIT(6);
+                    if (type == (note.type & ~BIT(7)) && x < note.x && y == note.y)
+                        type |= BIT(7);
+                    note.type = type;
+                }
+                else if (chart[counter + 1] == 16) // Right held slide
+                {
+                    // Mark all held slides with bit 6, and non-initial ones with bit 7
+                    uint8_t type = 5 | BIT(6);
+                    if (type == (note.type & ~BIT(7)) && x > note.x && y == note.y)
+                        type |= BIT(7);
+                    note.type = type;
                 }
                 else
                 {
@@ -258,7 +269,7 @@ static void updateChart()
                 note.ofsArrow = 0;
 
                 // Add a note to the queue
-                note.x = chart[counter + 2] * 256 / 480000 - 16;
+                note.x = x;
                 note.y = y;
                 note.time = timer + flyTime;
                 notes.push_back(note);
@@ -319,7 +330,7 @@ void gameLoop()
                 {
                     statX += notes[current].x + 16;
                     statY += notes[current].y + 16;
-                    mask |= BIT(notes[current++].type & ~BIT(7));
+                    mask |= BIT(notes[current++].type & ~0xC0);
                 }
                 statX = statX / current - 16;
                 statY = statY / current - 28;
@@ -371,15 +382,16 @@ void gameLoop()
                     if (!(notes[0].type & BIT(7)))
                     {
                         // Check how precisely the note was hit and adjust life
+                        // For slides, fine/safe count as cool, and sad counts as fine
                         // TODO: verify timings
                         int32_t offset = abs((int32_t)(notes[0].time - timer));
-                        if (offset <= FRAME_TIME * 3)
+                        if (offset <= FRAME_TIME * ((notes[0].type < 4) ? 3 : 9))
                         {
                             statType = 0; // Cool
                             combo++;
                             life = std::min(255, life + 2);
                         }
-                        else if (offset <= FRAME_TIME * 6)
+                        else if (offset <= FRAME_TIME * 6 || notes[0].type >= 4)
                         {
                             statType = 1; // Fine
                             combo++;
@@ -468,7 +480,7 @@ void gameLoop()
             // Draw the note if it's within screen bounds
             if (x > -32 && x < 256 && y > -32 && y < 192)
             {
-                uint8_t type = (notes[i].type & ~BIT(7)) + ((notes[i].type & BIT(7)) ? 10 : 8);
+                uint8_t type = (notes[i].type & ~0xC0) + ((notes[i].type & BIT(7)) ? 10 : 8);
                 oamSet(&oamMain, sprite++, x, y, 0, 1, SpriteSize_32x32,
                     SpriteColorFormat_Bmp, gameGfx[type], -1, false, false, false, false, false);
             }
@@ -480,8 +492,9 @@ void gameLoop()
             if (notes[i].type & BIT(7)) // Held slides
             {
                 // Draw a held slide note hole with no timing arrow
+                uint8_t type = (notes[i].type & ~0xC0) + 2;
                 oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, 1, SpriteSize_32x32,
-                    SpriteColorFormat_Bmp, gameGfx[notes[i].type - 0x7E], -1, false, false, false, false, false);
+                    SpriteColorFormat_Bmp, gameGfx[type], -1, false, false, false, false, false);
             }
             else
             {
@@ -497,8 +510,9 @@ void gameLoop()
                 }
 
                 // Draw a regular note hole
+                uint8_t type = (notes[i].type & ~0xC0);
                 oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, 1, SpriteSize_32x32,
-                    SpriteColorFormat_Bmp, gameGfx[notes[i].type], -1, false, false, false, false, false);
+                    SpriteColorFormat_Bmp, gameGfx[type], -1, false, false, false, false, false);
             }
         }
 

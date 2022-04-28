@@ -15,3 +15,4 @@ To build Project DS manually, you first need to install [devkitPro](https://devk
 
 ### References
 * [Open PD Script Editor](https://notabug.org/thatrandomlurker/Open-PD-Script-Editor) - Opcode definitions and parameter counts
+* [Project DIVA Arcade atwiki](https://w.atwiki.jp/projectdiva_ac/pages/128.html) - Detailed scoring information
