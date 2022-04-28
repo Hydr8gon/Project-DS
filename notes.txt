@@ -158,6 +158,10 @@ time. Parameters 6 and 7 are related to note wobble when flying in.
  13   | Right slider
  15   | Left slider (held)
  16   | Right slider (held)
+ 18   | Triangle (event)
+ 19   | Circle (event)
+ 20   | Cross (event)
+ 21   | Square (event)
 
 0x19 - MUSIC_PLAY
 Starts playback of the associated music file. No parameters.

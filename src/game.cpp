@@ -247,6 +247,11 @@ static void updateChart()
                         type |= BIT(7);
                     note.type = type;
                 }
+                else if (chart[counter + 1] >= 18 && chart[counter + 1] < 22) // Event notes
+                {
+                    // These normally trigger PV events; treat them as regular notes for now
+                    note.type = chart[counter + 1] - 18;
+                }
                 else
                 {
                     break;
