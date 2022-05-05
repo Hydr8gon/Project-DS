@@ -88,6 +88,7 @@ static uint8_t statTimer = 0;
 
 static uint32_t combo = 0;
 static uint8_t life = 127;
+static uint32_t score = 0;
 
 static const uint8_t paramCounts[0x100] =
 {
@@ -190,6 +191,7 @@ static void retryScreen()
         statTimer = 0;
         combo = 0;
         life = 127;
+        score = 0;
         return;
     }
 }
@@ -366,18 +368,30 @@ void gameLoop()
                         statCurY = statY;
                         combo = 0;
 
-                        // Check how precisely the note was hit and adjust life
+                        // Check how precisely the note was hit and adjust life and score
                         // For slides, fine/safe count as cool, and sad counts as fine
                         // TODO: verify timings, add unique graphics
                         int32_t offset = abs((int32_t)(notes[0].time - timer));
                         if (offset <= FRAME_TIME * ((notes[0].type < 4) ? 3 : 9)) // Wrong (red)
+                        {
                             life = std::max(0, life - 3);
+                            score += 250;
+                        }
                         else if (offset <= FRAME_TIME * 6 || notes[0].type >= 4) // Wrong (black)
+                        {
                             life = std::max(0, life - 6);
-                        else if (offset <= FRAME_TIME * 9)
-                            life = std::max(0, life - 9); // Wrong (green)
-                        else
-                            life = std::max(0, life - 15); // Wrong (blue)
+                            score += 150;
+                        }
+                        else if (offset <= FRAME_TIME * 9) // Wrong (green)
+                        {
+                            life = std::max(0, life - 9);
+                            score += 50;
+                        }
+                        else // Wrong (blue)
+                        {
+                            life = std::max(0, life - 15);
+                            score += 30;
+                        }
 
                         // Clear notes that were missed
                         for (; current > 0; current--)
@@ -396,40 +410,70 @@ void gameLoop()
 
                 if (mask == mask2)
                 {
-                    if (!(notes[0].type & BIT(7)))
+                    if (notes[0].type & BIT(7))
                     {
-                        // Check how precisely the note was hit and adjust life
+                        // Adjust score for non-initial held slides, which are always cool
+                        // TODO: continuous slide and max slide score bonuses
+                        score += 500;
+
+                        // Add a 10-point bonus at full health
+                        if (life == 255)
+                            score += 10;
+                    }
+                    else
+                    {
+                        // Check how precisely the note was hit and adjust life and score
                         // For slides, fine/safe count as cool, and sad counts as fine
                         // TODO: verify timings
                         int32_t offset = abs((int32_t)(notes[0].time - timer));
-                        if (offset <= FRAME_TIME * ((notes[0].type < 4) ? 3 : 9))
+                        if (offset <= FRAME_TIME * ((notes[0].type < 4) ? 3 : 9)) // Cool
                         {
-                            statType = 0; // Cool
+                            statType = 0;
                             combo++;
                             life = std::min(255, life + 2);
+                            score += 500 * current;
+
+                            // Add a 10-point bonus at full health
+                            if (life == 255)
+                                score += 10;
                         }
-                        else if (offset <= FRAME_TIME * 6 || notes[0].type >= 4)
+                        else if (offset <= FRAME_TIME * 6 || notes[0].type >= 4) // Fine
                         {
-                            statType = 1; // Fine
+                            statType = 1;
                             combo++;
                             life = std::min(255, life + 1);
+                            score += 300 * current;
                         }
-                        else if (offset <= FRAME_TIME * 9)
+                        else if (offset <= FRAME_TIME * 9) // Safe
                         {
-                            statType = 2; // Safe
+                            statType = 2;
                             combo = 0;
+                            score += 100 * current;
                         }
-                        else
+                        else // Sad
                         {
-                            statType = 3; // Sad
+                            statType = 3;
                             combo = 0;
                             life = std::max(0, life - 10);
+                            score += 50 * current;
                         }
 
                         // Show the hit status above the note
                         statTimer = 60;
                         statCurX = statX;
                         statCurY = statY;
+
+                        // Add a score bonus based on current combo
+                        if (combo >= 50)
+                            score += 250;
+                        else if (combo >= 40)
+                            score += 200;
+                        else if (combo >= 30)
+                            score += 150;
+                        else if (combo >= 20)
+                            score += 100;
+                        else if (combo >= 10)
+                            score += 50;
                     }
 
                     // Clear the notes that were hit
@@ -533,8 +577,9 @@ void gameLoop()
             }
         }
 
-        // Show the life gauge on the bottom screen
-        printf("\x1b[0;0HLife: %3u\n", life);
+        // Show the life gauge and score on the bottom screen
+        printf("\x1b[0;0HLife: %03u", life);
+        printf("\x1b[0;18HScore: %07lu", score);
 
         // Move to the next frame
         oamUpdate(&oamMain);
