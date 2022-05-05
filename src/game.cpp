@@ -365,7 +365,19 @@ void gameLoop()
                         statCurX = statX;
                         statCurY = statY;
                         combo = 0;
-                        life = std::max(0, life - 20);
+
+                        // Check how precisely the note was hit and adjust life
+                        // For slides, fine/safe count as cool, and sad counts as fine
+                        // TODO: verify timings, add unique graphics
+                        int32_t offset = abs((int32_t)(notes[0].time - timer));
+                        if (offset <= FRAME_TIME * ((notes[0].type < 4) ? 3 : 9)) // Wrong (red)
+                            life = std::max(0, life - 3);
+                        else if (offset <= FRAME_TIME * 6 || notes[0].type >= 4) // Wrong (black)
+                            life = std::max(0, life - 6);
+                        else if (offset <= FRAME_TIME * 9)
+                            life = std::max(0, life - 9); // Wrong (green)
+                        else
+                            life = std::max(0, life - 15); // Wrong (blue)
 
                         // Clear notes that were missed
                         for (; current > 0; current--)

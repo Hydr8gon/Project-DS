@@ -179,10 +179,10 @@ gauge. Its initial value is 127, with a max value of 255. The chart below shows
 how much the value is adjusted based on note timing when hit. Wrong notes have
 varying adjustments based on timing as well.
 
- Time | Value
-------+------
- Cool |  +2
- Fine |  +1
- Safe |   0
- Sad  | -10
- Miss | -20
+ Time | Right | Wrong
+------+-------+-------
+ Cool |  +2   |  -3
+ Fine |  +1   |  -6
+ Safe |   0   |  -9
+ Sad  | -10   | -15
+ Miss | -20   | -20
