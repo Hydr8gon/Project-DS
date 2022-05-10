@@ -86,6 +86,9 @@ static uint8_t mask = 0;
 static uint8_t mask2 = 0;
 static uint8_t statTimer = 0;
 
+static uint32_t slideCount = 0;
+static bool slideBroken = false;
+
 static uint32_t combo = 0;
 static uint8_t life = 127;
 static uint32_t score = 0;
@@ -189,6 +192,8 @@ static void retryScreen()
         mask = 0;
         mask2 = 0;
         statTimer = 0;
+        slideCount = 0;
+        slideBroken = false;
         combo = 0;
         life = 127;
         score = 0;
@@ -413,8 +418,21 @@ void gameLoop()
                     if (notes[0].type & BIT(7))
                     {
                         // Adjust score for non-initial held slides, which are always cool
-                        // TODO: continuous slide and max slide score bonuses
-                        score += 500;
+                        // A score bonus is added based on the current "combo" of these notes
+                        // TODO: draw the score bonus UI
+                        score += 500 + (++slideCount) * 10;
+
+                        // Detect the end of a held slide
+                        if (notes.size() == current || !(notes[current].type & BIT(7)))
+                        {
+                            // Add a 1000-point bonus if the slide was never broken
+                            if (!slideBroken)
+                                score += 1000;
+
+                            // Reset the slide stats for the next one
+                            slideCount = 0;
+                            slideBroken = false;
+                        }
 
                         // Add a 10-point bonus at full health
                         if (life == 255)
@@ -483,9 +501,15 @@ void gameLoop()
                 }
                 else if (notes[0].time + FRAME_TIME * 12 < timer)
                 {
-                    // Miss if a note wasn't cleared in time
-                    if (!(notes[0].type & BIT(7)))
+                    if (notes[0].type & BIT(7))
                     {
+                        // Break the slide combo if a held slide wasn't cleared in time
+                        slideCount = 0;
+                        slideBroken = true;
+                    }
+                    else
+                    {
+                        // Miss if a note wasn't cleared in time
                         statType = 4;
                         statTimer = 60;
                         statCurX = statX;
