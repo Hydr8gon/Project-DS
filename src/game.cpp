@@ -510,14 +510,23 @@ void gameLoop()
                         else if (combo >= 10)
                             score += 50;
 
-                        if (notes[0].type & BIT(4))
+                        for (int i = 0; i < current; i++)
                         {
-                            // If the note was held, start tracking it for score bonuses
-                            for (int i = 0; i < current; i++)
-                                holdNotes |= BIT(notes[i].type & 0xF);
+                            // Cancel note holds if a held note is hit again
+                            if (holdNotes & BIT(notes[i].type & 0xF))
+                            {
+                                holdNotes = 0;
+                                holdStart = 0;
+                                holdTime = 0;
+                                holdScore = 0;
+                            }
 
-                            // Reset the max hold time when a new hold starts
-                            holdTime = 0;
+                            // Track note holds and reset the max hold time when a new one starts
+                            if (notes[i].type & BIT(4))
+                            {
+                                holdNotes |= BIT(notes[i].type & 0xF);
+                                holdTime = 0;
+                            }
                         }
                     }
 
