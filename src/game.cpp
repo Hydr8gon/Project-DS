@@ -40,6 +40,7 @@
 #include "slider_r_hole.h"
 #include "slider_rh_hole.h"
 #include "arrow.h"
+#include "hold.h"
 #include "cool.h"
 #include "fine.h"
 #include "safe.h"
@@ -67,7 +68,7 @@ struct Note
 
 static std::deque<Note> notes;
 
-static uint16_t *gameGfx[22];
+static uint16_t *gameGfx[23];
 static uint16_t *numGfx[10];
 
 static std::string songName;
@@ -85,6 +86,11 @@ static uint8_t current = 0;
 static uint8_t mask = 0;
 static uint8_t mask2 = 0;
 static uint8_t statTimer = 0;
+
+static uint8_t holdNotes = 0;
+static uint8_t holdStart = 0;
+static uint16_t holdTime = 0;
+static uint16_t holdScore = 0;
 
 static uint32_t slideCount = 0;
 static bool slideBroken = false;
@@ -139,11 +145,12 @@ void gameInit()
     gameGfx[14] = initObjBitmap(slider_lhBitmap,      slider_lhBitmapLen,      SpriteSize_32x32);
     gameGfx[15] = initObjBitmap(slider_rhBitmap,      slider_rhBitmapLen,      SpriteSize_32x32);
     gameGfx[16] = initObjBitmap(arrowBitmap,          arrowBitmapLen,          SpriteSize_32x32);
-    gameGfx[17] = initObjBitmap(coolBitmap,           coolBitmapLen,           SpriteSize_32x8);
-    gameGfx[18] = initObjBitmap(fineBitmap,           fineBitmapLen,           SpriteSize_32x8);
-    gameGfx[19] = initObjBitmap(safeBitmap,           safeBitmapLen,           SpriteSize_32x8);
-    gameGfx[20] = initObjBitmap(sadBitmap,            sadBitmapLen,            SpriteSize_32x8);
-    gameGfx[21] = initObjBitmap(missBitmap,           missBitmapLen,           SpriteSize_32x8);
+    gameGfx[17] = initObjBitmap(holdBitmap,           holdBitmapLen,           SpriteSize_32x16);
+    gameGfx[18] = initObjBitmap(coolBitmap,           coolBitmapLen,           SpriteSize_32x8);
+    gameGfx[19] = initObjBitmap(fineBitmap,           fineBitmapLen,           SpriteSize_32x8);
+    gameGfx[20] = initObjBitmap(safeBitmap,           safeBitmapLen,           SpriteSize_32x8);
+    gameGfx[21] = initObjBitmap(sadBitmap,            sadBitmapLen,            SpriteSize_32x8);
+    gameGfx[22] = initObjBitmap(missBitmap,           missBitmapLen,           SpriteSize_32x8);
 
     // Allocate bitmap data for the combo numbers
     size_t len = combo_numsBitmapLen / 10;
@@ -192,6 +199,10 @@ static void retryScreen()
         mask = 0;
         mask2 = 0;
         statTimer = 0;
+        holdNotes = 0;
+        holdStart = 0;
+        holdTime = 0;
+        holdScore = 0;
         slideCount = 0;
         slideBroken = false;
         combo = 0;
@@ -230,13 +241,19 @@ static void updateChart()
                 int32_t y = chart[counter + 3] * 192 / 270000 - 16;
 
                 // Set the note type
-                if (chart[counter + 1] < 8) // Buttons and holds
+                if (chart[counter + 1] < 4) // Normal buttons
                 {
-                    note.type = chart[counter + 1] & 3;
+                    note.type = chart[counter + 1];
+                }
+                else if (chart[counter + 1] < 8) // Held buttons
+                {
+                    // Mark held buttons with bit 4
+                    note.type = (chart[counter + 1] & 3) | BIT(4);
                 }
                 else if (chart[counter + 1] == 12 || chart[counter + 1] == 13) // Single slides
                 {
-                    note.type = chart[counter + 1] - 8;
+                    // Mark single slides with bit 5
+                    note.type = (chart[counter + 1] - 8) | BIT(5);
                 }
                 else if (chart[counter + 1] == 15) // Left held slide
                 {
@@ -342,7 +359,7 @@ void gameLoop()
                 {
                     statX += notes[current].x + 16;
                     statY += notes[current].y + 16;
-                    mask |= BIT(notes[current++].type & ~0xC0);
+                    mask |= BIT(notes[current++].type & 0xF);
                 }
                 statX = statX / current - 16;
                 statY = statY / current - 28;
@@ -377,12 +394,12 @@ void gameLoop()
                         // For slides, fine/safe count as cool, and sad counts as fine
                         // TODO: verify timings, add unique graphics
                         int32_t offset = abs((int32_t)(notes[0].time - timer));
-                        if (offset <= FRAME_TIME * ((notes[0].type < 4) ? 3 : 9)) // Wrong (red)
+                        if (offset <= FRAME_TIME * ((notes[0].type & 0xE0) ? 9 : 3)) // Wrong (red)
                         {
                             life = std::max(0, life - 3);
                             score += 250;
                         }
-                        else if (offset <= FRAME_TIME * 6 || notes[0].type >= 4) // Wrong (black)
+                        else if (offset <= FRAME_TIME * 6 || (notes[0].type & 0xE0)) // Wrong (black)
                         {
                             life = std::max(0, life - 6);
                             score += 150;
@@ -444,7 +461,7 @@ void gameLoop()
                         // For slides, fine/safe count as cool, and sad counts as fine
                         // TODO: verify timings
                         int32_t offset = abs((int32_t)(notes[0].time - timer));
-                        if (offset <= FRAME_TIME * ((notes[0].type < 4) ? 3 : 9)) // Cool
+                        if (offset <= FRAME_TIME * ((notes[0].type & 0xE0) ? 9 : 3)) // Cool
                         {
                             statType = 0;
                             combo++;
@@ -455,7 +472,7 @@ void gameLoop()
                             if (life == 255)
                                 score += 10;
                         }
-                        else if (offset <= FRAME_TIME * 6 || notes[0].type >= 4) // Fine
+                        else if (offset <= FRAME_TIME * 6 || (notes[0].type & 0xE0)) // Fine
                         {
                             statType = 1;
                             combo++;
@@ -492,6 +509,16 @@ void gameLoop()
                             score += 100;
                         else if (combo >= 10)
                             score += 50;
+
+                        if (notes[0].type & BIT(4))
+                        {
+                            // If the note was held, start tracking it for score bonuses
+                            for (int i = 0; i < current; i++)
+                                holdNotes |= BIT(notes[i].type & 0xF);
+
+                            // Reset the max hold time when a new hold starts
+                            holdTime = 0;
+                        }
                     }
 
                     // Clear the notes that were hit
@@ -526,6 +553,62 @@ void gameLoop()
             }
         }
 
+        // Cancel note holds if one was released
+        for (int i = 0; i < 4; i++)
+        {
+            if ((holdNotes & BIT(i)) && !(held & keys[i]))
+            {
+                holdNotes = 0;
+                holdStart = 0;
+                holdTime = 0;
+                holdScore = 0;
+            }
+        }
+
+        // Add score bonuses for note holds
+        // TODO: draw the score bonus UI
+        if (holdNotes)
+        {
+            if (holdStart == 12)
+            {
+                // Add a 10-point bonus per note hold every frame
+                for (int i = 0; i < 4; i++)
+                {
+                    if (holdNotes & BIT(i))
+                        score += 10;
+                }
+            }
+            else
+            {
+                // Queue a 10-point bonus per note hold every frame
+                for (int i = 0; i < 4; i++)
+                {
+                    if (holdNotes & BIT(i))
+                        holdScore += 10;
+                }
+
+                // After 12 frames, commit to the hold and add the queued bonus
+                if (++holdStart == 12)
+                    score += holdScore;
+            }
+
+            if (++holdTime == 5 * 60) // 5 seconds
+            {
+                // Add a 1500-point bonus per note hold if the max hold time is reached
+                for (int i = 0; i < 4; i++)
+                {
+                    if (holdNotes & BIT(i))
+                        score += 1500;
+                }
+
+                // Cancel note holds after the max hold time is reached
+                holdNotes = 0;
+                holdStart = 0;
+                holdTime = 0;
+                holdScore = 0;
+            }
+        }
+
         // Draw the hit status while its timer is active
         if (statTimer > 0)
         {
@@ -550,7 +633,7 @@ void gameLoop()
 
             // Draw the accuracy indicator to the left of the combo counter
             oamSet(&oamMain, sprite++, statCurX + x - 32, statCurY, 0, 1, SpriteSize_32x8,
-                SpriteColorFormat_Bmp, gameGfx[17 + statType], -1, false, false, false, false, false);
+                SpriteColorFormat_Bmp, gameGfx[18 + statType], -1, false, false, false, false, false);
 
             statTimer--;
         }
@@ -565,7 +648,7 @@ void gameLoop()
             // Draw the note if it's within screen bounds
             if (x > -32 && x < 256 && y > -32 && y < 192)
             {
-                uint8_t type = (notes[i].type & ~0xC0) + ((notes[i].type & BIT(7)) ? 10 : 8);
+                uint8_t type = (notes[i].type & 0xF) + ((notes[i].type & BIT(7)) ? 10 : 8);
                 oamSet(&oamMain, sprite++, x, y, 0, 1, SpriteSize_32x32,
                     SpriteColorFormat_Bmp, gameGfx[type], -1, false, false, false, false, false);
             }
@@ -577,7 +660,7 @@ void gameLoop()
             if (notes[i].type & BIT(7)) // Held slides
             {
                 // Draw a held slide note hole with no timing arrow
-                uint8_t type = (notes[i].type & ~0xC0) + 2;
+                uint8_t type = (notes[i].type & 0xF) + 2;
                 oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, 1, SpriteSize_32x32,
                     SpriteColorFormat_Bmp, gameGfx[type], -1, false, false, false, false, false);
             }
@@ -594,8 +677,15 @@ void gameLoop()
                         SpriteColorFormat_Bmp, gameGfx[16], rotscale++, false, false, false, false, false);
                 }
 
+                // Draw the hold indicator if the note is held
+                if (notes[i].type & BIT(4))
+                {
+                    oamSet(&oamMain, sprite++, notes[i].x, notes[i].y + 20, 0, 1, SpriteSize_32x16,
+                        SpriteColorFormat_Bmp, gameGfx[17], -1, false, false, false, false, false);
+                }
+
                 // Draw a regular note hole
-                uint8_t type = (notes[i].type & ~0xC0);
+                uint8_t type = (notes[i].type & 0xF);
                 oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, 1, SpriteSize_32x32,
                     SpriteColorFormat_Bmp, gameGfx[type], -1, false, false, false, false, false);
             }
