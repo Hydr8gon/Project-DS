@@ -20,6 +20,7 @@
 #ifndef MENU_H
 #define MENU_H
 
-extern void songSelector();
+extern void songList();
+extern void retryMenu();
 
 #endif // MENU_H

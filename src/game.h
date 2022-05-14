@@ -20,10 +20,14 @@
 #ifndef GAME_H
 #define GAME_H
 
+#include <cstdint>
 #include <string>
+
+extern uint32_t flyTimeDef;
 
 extern void gameInit();
 extern void gameLoop();
+extern void gameReset();
 
 extern void loadChart(std::string &chartName, std::string &songName, bool retry);
 

@@ -18,7 +18,6 @@
 */
 
 #include <cmath>
-#include <cstdint>
 #include <deque>
 
 #include <nds.h>
@@ -71,11 +70,11 @@ static std::deque<Note> notes;
 static uint16_t *gameGfx[23];
 static uint16_t *numGfx[10];
 
-static std::string songName;
-
 static size_t chartSize = 0;
 static uint32_t *chart = nullptr;
-static uint32_t flyTimeDef = 1750;
+static std::string songName;
+
+uint32_t flyTimeDef = 1750;
 
 static uint32_t counter = 1;
 static uint32_t timer = 0;
@@ -156,60 +155,6 @@ void gameInit()
     size_t len = combo_numsBitmapLen / 10;
     for (int i = 0; i < 10; i++)
         numGfx[i] = initObjBitmap(&combo_numsBitmap[i * len / sizeof(int)], len, SpriteSize_8x8);
-}
-
-static void retryScreen()
-{
-    stopSong();
-    printf("Press start to retry.\n");
-    printf("Press select to return to songs.");
-    printf("Press dpad to adjust fly time.\n");
-
-    // Show the retry screen
-    while (true)
-    {
-        printf("\x1b[22;0HDefault fly time: %4lu\n", flyTimeDef);
-
-        // Check key input once per frame
-        scanKeys();
-        uint16_t down = keysDown();
-        swiWaitForVBlank();
-
-        // Adjust default fly time with the up and down buttons
-        // TODO: figure out how to properly set this
-        if ((down & KEY_UP) && flyTimeDef < 3000)
-            flyTimeDef += 50;
-        else if ((down & KEY_DOWN) && flyTimeDef > 500)
-            flyTimeDef -= 50;
-
-        // Open the song selector on select, or reset the chart on start
-        if (down & KEY_SELECT)
-            songSelector();
-        else if (!(down & KEY_START))
-            continue;
-
-        // Reset the current chart
-        consoleClear();
-        notes.clear();
-        counter = 1;
-        timer = 0;
-        flyTime = flyTimeDef * 100;
-        finished = false;
-        current = 0;
-        mask = 0;
-        mask2 = 0;
-        statTimer = 0;
-        holdNotes = 0;
-        holdStart = 0;
-        holdTime = 0;
-        holdScore = 0;
-        slideCount = 0;
-        slideBroken = false;
-        combo = 0;
-        life = 127;
-        score = 0;
-        return;
-    }
 }
 
 static void updateChart()
@@ -327,8 +272,8 @@ static void updateChart()
 
 void gameLoop()
 {
-    // Open the file browser on start
-    songSelector();
+    // Open the song list on start
+    songList();
 
     int32_t statX = 0, statY = 0;
     int32_t statCurX = 0, statCurY = 0;
@@ -709,22 +654,45 @@ void gameLoop()
         swiWaitForVBlank();
         timer += FRAME_TIME;
 
-        // Check the end conditions
+        // Check the stop conditions
         if (down & KEY_START)
         {
-            retryScreen();
+            retryMenu();
         }
         else if (life == 0)
         {
-            printf("FAILED...\n");
-            retryScreen();
+            printf("\x1b[6;12HFAILED...\n");
+            retryMenu();
         }
         else if (finished && notes.empty())
         {
-            printf("CLEAR!\n");
-            retryScreen();
+            printf("\x1b[6;13HCLEAR!\n");
+            retryMenu();
         }
     }
+}
+
+void gameReset()
+{
+    // Reset the current chart
+    notes.clear();
+    counter = 1;
+    timer = 0;
+    flyTime = flyTimeDef * 100;
+    finished = false;
+    current = 0;
+    mask = 0;
+    mask2 = 0;
+    statTimer = 0;
+    holdNotes = 0;
+    holdStart = 0;
+    holdTime = 0;
+    holdScore = 0;
+    slideCount = 0;
+    slideBroken = false;
+    combo = 0;
+    life = 127;
+    score = 0;
 }
 
 void loadChart(std::string &chartName, std::string &songName2, bool retry)
@@ -742,7 +710,7 @@ void loadChart(std::string &chartName, std::string &songName2, bool retry)
     // Set the chart's song filename
     songName = songName2;
 
-    // Show the retry screen if requested
+    // Show the retry menu if requested
     if (retry)
-        retryScreen();
+        retryMenu();
 }

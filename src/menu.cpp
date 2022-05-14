@@ -19,7 +19,6 @@
 
 #include <algorithm>
 #include <dirent.h>
-#include <string>
 #include <vector>
 
 #include <nds.h>
@@ -28,10 +27,9 @@
 #include "audio.h"
 #include "game.h"
 
-static size_t difficulty = 1;
-static size_t selection = 0;
+static const char a[] = {' ', '>'};
 
-void songSelector()
+void songList()
 {
     std::vector<std::string> charts[5];
     DIR *dir = opendir("/project-ds/dsc");
@@ -67,6 +65,7 @@ void songSelector()
     // Ensure there are files present
     if (charts[0].empty() && charts[1].empty() && charts[2].empty() && charts[3].empty() && charts[4].empty())
     {
+        consoleClear();
         printf("No DSC files found.\n");
         printf("Place them in '/project-ds/dsc'.\n");
 
@@ -75,6 +74,8 @@ void songSelector()
             swiWaitForVBlank();
     }
 
+    static size_t difficulty = 1;
+    static size_t selection = 0;
     uint8_t frames = 1;
 
     // Show the file browser
@@ -90,7 +91,6 @@ void songSelector()
                 offset = selection - 10;
         }
 
-        static const char a[] = {' ', '>'};
         consoleClear();
 
         // Display a section of files around the current selection
@@ -178,4 +178,76 @@ void songSelector()
     fclose(song);
 
     loadChart(dscName, pcmName, retry);
+}
+
+void retryMenu()
+{
+    stopSong();
+
+    size_t selection = 0;
+    uint8_t frames = 1;
+
+    while (true)
+    {
+        // Draw the menu items
+        printf("\x1b[10;13H%cRetry", a[selection == 0]);
+        printf("\x1b[12;6H%cReturn to Song List", a[selection == 1]);
+        printf("\x1b[22;0HAdjust left/right if timing off");
+        printf("\x1b[23;0HDefault fly time: %04lu", flyTimeDef);
+
+        uint16_t held = 0;
+        uint16_t inputs = KEY_A | KEY_UP | KEY_DOWN | KEY_LEFT | KEY_RIGHT;
+
+        // Wait for button input
+        while (!(held & inputs))
+        {
+            scanKeys();
+            held = keysHeld();
+            if (!(held & inputs))
+                frames = 0;
+            swiWaitForVBlank();
+        }
+
+        if (held & KEY_A)
+        {
+            // Handle the selected item
+            switch (selection)
+            {
+                case 1: // Return to Song List
+                    songList();
+                case 0: // Retry
+                    gameReset();
+                    break;
+            }
+
+            // Return to the game
+            consoleClear();
+            return;
+        }
+        else if (held & KEY_UP)
+        {
+            // Decrement the current selection with wraparound, continuously after 30 frames
+            if ((frames > 30 || frames++ == 0) && selection-- == 0)
+                selection = 2 - 1;
+        }
+        else if (held & KEY_DOWN)
+        {
+            // Increment the current selection with wraparound, continuously after 30 frames
+            if ((frames > 30 || frames++ == 0) && ++selection == 2)
+                selection = 0;
+        }
+        else if (held & KEY_LEFT)
+        {
+            // Decrement the default fly time, continuously after 30 frames
+            // TODO: figure out how to properly set this
+            if ((frames > 30 || frames++ == 0) && flyTimeDef > 500)
+                flyTimeDef -= 50;
+        }
+        else if (held & KEY_RIGHT)
+        {
+            // Increment the default fly time, continuously after 30 frames
+            if ((frames > 30 || frames++ == 0) && flyTimeDef < 3000)
+                flyTimeDef += 50;
+        }
+    }
 }
