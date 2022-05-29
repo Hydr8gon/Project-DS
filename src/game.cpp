@@ -74,11 +74,9 @@ static size_t chartSize = 0;
 static uint32_t *chart = nullptr;
 static std::string songName;
 
-uint32_t flyTimeDef = 1750;
-
 static uint32_t counter = 1;
 static uint32_t timer = 0;
-static uint32_t flyTime = flyTimeDef * 100;
+static uint32_t flyTime = 100000;
 static bool finished = false;
 
 static uint8_t current = 0;
@@ -254,6 +252,13 @@ static void updateChart()
             {
                 // Start playing the song
                 playSong(songName);
+                break;
+            }
+
+            case 0x1C: // Bar time set
+            {
+                // Set the flying time using beats per minute and beats per bar
+                flyTime = (60.0f / chart[counter + 1]) * (chart[counter + 2] + 1) * 100000;
                 break;
             }
 
@@ -678,7 +683,7 @@ void gameReset()
     notes.clear();
     counter = 1;
     timer = 0;
-    flyTime = flyTimeDef * 100;
+    flyTime = 100000;
     finished = false;
     current = 0;
     mask = 0;

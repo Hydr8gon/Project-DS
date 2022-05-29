@@ -23,8 +23,6 @@
 #include <cstdint>
 #include <string>
 
-extern uint32_t flyTimeDef;
-
 extern void gameInit();
 extern void gameLoop();
 extern void gameReset();

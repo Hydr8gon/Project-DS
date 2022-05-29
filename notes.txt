@@ -166,6 +166,13 @@ time. Parameters 6 and 7 are related to note wobble when flying in.
 0x19 - MUSIC_PLAY
 Starts playback of the associated music file. No parameters.
 
+0x1C - BAR_TIME_SET
+Sets the time between when a target/note is created and when it should be hit.
+Older charts tend to use this, while newer ones use TARGET_FLYING_TIME. Unlike
+TARGET_FLYING_TIME, this uses a formula instead of a direct value. A value in
+milliseconds is calculated as follows: (60 / BPM) * (BPB + 1) * 1000. Parameter
+1 is the beats per minute (BPM). Parameter 2 is the beats per bar (BPB).
+
 0x3A - TARGET_FLYING_TIME
 Sets the time between when a target/note is created and when it should be hit.
 Smaller values mean notes travel faster to reach their destination quicker.

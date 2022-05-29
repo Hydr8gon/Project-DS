@@ -192,11 +192,9 @@ void retryMenu()
         // Draw the menu items
         printf("\x1b[10;13H%cRetry", a[selection == 0]);
         printf("\x1b[12;6H%cReturn to Song List", a[selection == 1]);
-        printf("\x1b[22;0HAdjust left/right if timing off");
-        printf("\x1b[23;0HDefault fly time: %04lu", flyTimeDef);
 
         uint16_t held = 0;
-        uint16_t inputs = KEY_A | KEY_UP | KEY_DOWN | KEY_LEFT | KEY_RIGHT;
+        uint16_t inputs = KEY_A | KEY_UP | KEY_DOWN;
 
         // Wait for button input
         while (!(held & inputs))
@@ -235,19 +233,6 @@ void retryMenu()
             // Increment the current selection with wraparound, continuously after 30 frames
             if ((frames > 30 || frames++ == 0) && ++selection == 2)
                 selection = 0;
-        }
-        else if (held & KEY_LEFT)
-        {
-            // Decrement the default fly time, continuously after 30 frames
-            // TODO: figure out how to properly set this
-            if ((frames > 30 || frames++ == 0) && flyTimeDef > 500)
-                flyTimeDef -= 50;
-        }
-        else if (held & KEY_RIGHT)
-        {
-            // Increment the default fly time, continuously after 30 frames
-            if ((frames > 30 || frames++ == 0) && flyTimeDef < 3000)
-                flyTimeDef += 50;
         }
     }
 }
