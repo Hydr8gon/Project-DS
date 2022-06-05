@@ -94,7 +94,11 @@ static bool slideBroken = false;
 
 static uint32_t combo = 0;
 static uint8_t life = 127;
-static uint32_t score = 0;
+
+static uint32_t scoreBase = 0;
+static uint32_t scoreHold = 0;
+static uint32_t scoreSlide = 0;
+static uint32_t scoreRef = 0;
 
 static const uint8_t paramCounts[0x100] =
 {
@@ -153,6 +157,85 @@ void gameInit()
     size_t len = combo_numsBitmapLen / 10;
     for (int i = 0; i < 10; i++)
         numGfx[i] = initObjBitmap(&combo_numsBitmap[i * len / sizeof(int)], len, SpriteSize_8x8);
+}
+
+static uint32_t calcRefScore()
+{
+    uint32_t score = 0;
+    uint32_t count = 1;
+    bool finish = false;
+    bool multi = false;
+
+    // Scan the whole chart and add up the reference score
+    while (count < chartSize && !finish)
+    {
+        switch (chart[count])
+        {
+            case 0x00: // End
+            {
+                finish = true;
+                break;
+            }
+
+            case 0x01: // Time
+            {
+                multi = false;
+                break;
+            }
+
+            case 0x06: // Target
+            {
+                static Note note;
+                int32_t x = chart[count + 2] * 256 / 480000 - 16;
+                int32_t y = chart[count + 3] * 192 / 270000 - 16;
+
+                // Set the note type
+                if (chart[count + 1] < 8 || // Normal and held buttons
+                    chart[count + 1] == 12 || chart[count + 1] == 13 || // Single slides
+                    (chart[count + 1] >= 18 && chart[count + 1] < 22)) // Event notes
+                {
+                    // The note type doesn't matter for non-special cases, so ignore it
+                    note.type = 0;
+                }
+                else if (chart[count + 1] == 15) // Left held slide
+                {
+                    // Mark all held slides with bit 6, and non-initial ones with bit 7
+                    uint8_t type = 4 | BIT(6);
+                    if (type == (note.type & ~BIT(7)) && x < note.x && y == note.y)
+                        type |= BIT(7);
+                    note.type = type;
+                }
+                else if (chart[count + 1] == 16) // Right held slide
+                {
+                    // Mark all held slides with bit 6, and non-initial ones with bit 7
+                    uint8_t type = 5 | BIT(6);
+                    if (type == (note.type & ~BIT(7)) && x > note.x && y == note.y)
+                        type |= BIT(7);
+                    note.type = type;
+                }
+                else
+                {
+                    break;
+                }
+
+                // Remember the current note's coordinates
+                note.x = x;
+                note.y = y;
+
+                // Increase the reference score
+                // Combo bonus doesn't apply to non-initial multi-notes and slides
+                score += 500 + ((multi || (note.type & BIT(7))) ? 0 : 250);
+                multi = true;
+                break;
+            }
+        }
+
+        // Move to the next opcode
+        count += paramCounts[chart[count]] + 1;
+    }
+
+    // Return the reference score, adjusted for combos below 50
+    return score - 7250;
 }
 
 static void updateChart()
@@ -347,22 +430,22 @@ void gameLoop()
                         if (offset <= FRAME_TIME * ((notes[0].type & 0xE0) ? 9 : 3)) // Wrong (red)
                         {
                             life = std::max(0, life - 3);
-                            score += 250;
+                            scoreBase += 250;
                         }
                         else if (offset <= FRAME_TIME * 6 || (notes[0].type & 0xE0)) // Wrong (black)
                         {
                             life = std::max(0, life - 6);
-                            score += 150;
+                            scoreBase += 150;
                         }
                         else if (offset <= FRAME_TIME * 9) // Wrong (green)
                         {
                             life = std::max(0, life - 9);
-                            score += 50;
+                            scoreBase += 50;
                         }
                         else // Wrong (blue)
                         {
                             life = std::max(0, life - 15);
-                            score += 30;
+                            scoreBase += 30;
                         }
 
                         // Clear notes that were missed
@@ -387,14 +470,15 @@ void gameLoop()
                         // Adjust score for non-initial held slides, which are always cool
                         // A score bonus is added based on the current "combo" of these notes
                         // TODO: draw the score bonus UI
-                        score += 500 + (++slideCount) * 10;
+                        scoreBase += 500;
+                        scoreSlide += (++slideCount) * 10;
 
                         // Detect the end of a held slide
                         if (notes.size() == current || !(notes[current].type & BIT(7)))
                         {
                             // Add a 1000-point bonus if the slide was never broken
                             if (!slideBroken)
-                                score += 1000;
+                                scoreSlide += 1000;
 
                             // Reset the slide stats for the next one
                             slideCount = 0;
@@ -403,7 +487,7 @@ void gameLoop()
 
                         // Add a 10-point bonus at full health
                         if (life == 255)
-                            score += 10;
+                            scoreBase += 10;
                     }
                     else
                     {
@@ -416,31 +500,31 @@ void gameLoop()
                             statType = 0;
                             combo++;
                             life = std::min(255, life + 2);
-                            score += 500 * current;
+                            scoreBase += 500 * current;
 
                             // Add a 10-point bonus at full health
                             if (life == 255)
-                                score += 10;
+                                scoreBase += 10;
                         }
                         else if (offset <= FRAME_TIME * 6 || (notes[0].type & 0xE0)) // Fine
                         {
                             statType = 1;
                             combo++;
                             life = std::min(255, life + 1);
-                            score += 300 * current;
+                            scoreBase += 300 * current;
                         }
                         else if (offset <= FRAME_TIME * 9) // Safe
                         {
                             statType = 2;
                             combo = 0;
-                            score += 100 * current;
+                            scoreBase += 100 * current;
                         }
                         else // Sad
                         {
                             statType = 3;
                             combo = 0;
                             life = std::max(0, life - 10);
-                            score += 50 * current;
+                            scoreBase += 50 * current;
                         }
 
                         // Show the hit status above the note
@@ -450,15 +534,15 @@ void gameLoop()
 
                         // Add a score bonus based on current combo
                         if (combo >= 50)
-                            score += 250;
+                            scoreBase += 250;
                         else if (combo >= 40)
-                            score += 200;
+                            scoreBase += 200;
                         else if (combo >= 30)
-                            score += 150;
+                            scoreBase += 150;
                         else if (combo >= 20)
-                            score += 100;
+                            scoreBase += 100;
                         else if (combo >= 10)
-                            score += 50;
+                            scoreBase += 50;
 
                         for (int i = 0; i < current; i++)
                         {
@@ -534,7 +618,7 @@ void gameLoop()
                 for (int i = 0; i < 4; i++)
                 {
                     if (holdNotes & BIT(i))
-                        score += 10;
+                        scoreHold += 10;
                 }
             }
             else
@@ -548,7 +632,7 @@ void gameLoop()
 
                 // After 12 frames, commit to the hold and add the queued bonus
                 if (++holdStart == 12)
-                    score += holdScore;
+                    scoreHold += holdScore;
             }
 
             if (++holdTime == 5 * 60) // 5 seconds
@@ -557,7 +641,7 @@ void gameLoop()
                 for (int i = 0; i < 4; i++)
                 {
                     if (holdNotes & BIT(i))
-                        score += 1500;
+                        scoreHold += 1500;
                 }
 
                 // Cancel note holds after the max hold time is reached
@@ -652,7 +736,12 @@ void gameLoop()
 
         // Show the life gauge and score on the bottom screen
         printf("\x1b[0;0HLife: %03u", life);
-        printf("\x1b[0;18HScore: %07lu", score);
+        printf("\x1b[0;18HScore: %07lu", scoreBase + scoreHold + scoreSlide);
+
+        // Calculate the current clear percentage and show it on the bottom screen
+        // TODO: change hold coefficient based on difficulty
+        float clear = (100.0f * (scoreBase + std::min(scoreRef / 20, scoreHold / 5))) / scoreRef;
+        printf("\x1b[23;0HClear: %.02f%%", clear);
 
         // Move to the next frame
         oamUpdate(&oamMain);
@@ -697,7 +786,9 @@ void gameReset()
     slideBroken = false;
     combo = 0;
     life = 127;
-    score = 0;
+    scoreBase = 0;
+    scoreHold = 0;
+    scoreSlide = 0;
 }
 
 void loadChart(std::string &chartName, std::string &songName2, bool retry)
@@ -714,6 +805,9 @@ void loadChart(std::string &chartName, std::string &songName2, bool retry)
 
     // Set the chart's song filename
     songName = songName2;
+
+    // Calculate the reference score for clear percentage
+    scoreRef = calcRefScore();
 
     // Show the retry menu if requested
     if (retry)
