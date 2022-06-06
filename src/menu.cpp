@@ -62,6 +62,10 @@ void songList()
     for (int i = 0; i < 5; i++)
         sort(charts[i].begin(), charts[i].end());
 
+    // Clear any sprites that were set
+    oamClear(&oamSub, 0, 0);
+    oamUpdate(&oamSub);
+
     // Ensure there are files present
     if (charts[0].empty() && charts[1].empty() && charts[2].empty() && charts[3].empty() && charts[4].empty())
     {

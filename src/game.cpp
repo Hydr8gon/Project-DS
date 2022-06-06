@@ -47,6 +47,9 @@
 #include "miss.h"
 #include "combo_nums.h"
 
+#include "life_empty.h"
+#include "life_full.h"
+
 #include "game.h"
 #include "audio.h"
 #include "menu.h"
@@ -67,8 +70,9 @@ struct Note
 
 static std::deque<Note> notes;
 
-static uint16_t *gameGfx[23];
 static uint16_t *numGfx[10];
+static uint16_t *mainGfx[23];
+static uint16_t *subGfx[2];
 
 static size_t chartSize = 0;
 static uint32_t *chart = nullptr;
@@ -118,45 +122,49 @@ static const uint16_t keys[6] =
     KEY_L,              KEY_R                // Slider L, Slider R
 };
 
-static uint16_t *initObjBitmap(const unsigned int *bitmap, size_t bitmapLen, SpriteSize size)
+static uint16_t *initObjBitmap(OamState *oam, const unsigned int *bitmap, size_t bitmapLen, SpriteSize size)
 {
     // Copy 16-color object tiles into appropriate memory, and return a pointer to the data
-    uint16_t *gfx = oamAllocateGfx(&oamMain, size, SpriteColorFormat_Bmp);
+    uint16_t *gfx = oamAllocateGfx(oam, size, SpriteColorFormat_Bmp);
     if (gfx) dmaCopy(bitmap, gfx, bitmapLen);
     return gfx;
 }
 
 void gameInit()
 {
-    // Allocate bitmap data for the game objects
-    gameGfx[0]  = initObjBitmap(triangle_holeBitmap,  triangle_holeBitmapLen,  SpriteSize_32x32);
-    gameGfx[1]  = initObjBitmap(circle_holeBitmap,    circle_holeBitmapLen,    SpriteSize_32x32);
-    gameGfx[2]  = initObjBitmap(cross_holeBitmap,     cross_holeBitmapLen,     SpriteSize_32x32);
-    gameGfx[3]  = initObjBitmap(square_holeBitmap,    square_holeBitmapLen,    SpriteSize_32x32);
-    gameGfx[4]  = initObjBitmap(slider_l_holeBitmap,  slider_l_holeBitmapLen,  SpriteSize_32x32);
-    gameGfx[5]  = initObjBitmap(slider_r_holeBitmap,  slider_r_holeBitmapLen,  SpriteSize_32x32);
-    gameGfx[6]  = initObjBitmap(slider_lh_holeBitmap, slider_lh_holeBitmapLen, SpriteSize_32x32);
-    gameGfx[7]  = initObjBitmap(slider_rh_holeBitmap, slider_rh_holeBitmapLen, SpriteSize_32x32);
-    gameGfx[8]  = initObjBitmap(triangleBitmap,       triangleBitmapLen,       SpriteSize_32x32);
-    gameGfx[9]  = initObjBitmap(circleBitmap,         circleBitmapLen,         SpriteSize_32x32);
-    gameGfx[10] = initObjBitmap(crossBitmap,          crossBitmapLen,          SpriteSize_32x32);
-    gameGfx[11] = initObjBitmap(squareBitmap,         squareBitmapLen,         SpriteSize_32x32);
-    gameGfx[12] = initObjBitmap(slider_lBitmap,       slider_lBitmapLen,       SpriteSize_32x32);
-    gameGfx[13] = initObjBitmap(slider_rBitmap,       slider_rBitmapLen,       SpriteSize_32x32);
-    gameGfx[14] = initObjBitmap(slider_lhBitmap,      slider_lhBitmapLen,      SpriteSize_32x32);
-    gameGfx[15] = initObjBitmap(slider_rhBitmap,      slider_rhBitmapLen,      SpriteSize_32x32);
-    gameGfx[16] = initObjBitmap(arrowBitmap,          arrowBitmapLen,          SpriteSize_32x32);
-    gameGfx[17] = initObjBitmap(holdBitmap,           holdBitmapLen,           SpriteSize_32x16);
-    gameGfx[18] = initObjBitmap(coolBitmap,           coolBitmapLen,           SpriteSize_32x8);
-    gameGfx[19] = initObjBitmap(fineBitmap,           fineBitmapLen,           SpriteSize_32x8);
-    gameGfx[20] = initObjBitmap(safeBitmap,           safeBitmapLen,           SpriteSize_32x8);
-    gameGfx[21] = initObjBitmap(sadBitmap,            sadBitmapLen,            SpriteSize_32x8);
-    gameGfx[22] = initObjBitmap(missBitmap,           missBitmapLen,           SpriteSize_32x8);
-
     // Allocate bitmap data for the combo numbers
     size_t len = combo_numsBitmapLen / 10;
     for (int i = 0; i < 10; i++)
-        numGfx[i] = initObjBitmap(&combo_numsBitmap[i * len / sizeof(int)], len, SpriteSize_8x8);
+        numGfx[i] = initObjBitmap(&oamMain, &combo_numsBitmap[i * len / sizeof(int)], len, SpriteSize_8x8);
+
+    // Allocate bitmap data for the main screen objects
+    mainGfx[0]  = initObjBitmap(&oamMain, triangle_holeBitmap,  triangle_holeBitmapLen,  SpriteSize_32x32);
+    mainGfx[1]  = initObjBitmap(&oamMain, circle_holeBitmap,    circle_holeBitmapLen,    SpriteSize_32x32);
+    mainGfx[2]  = initObjBitmap(&oamMain, cross_holeBitmap,     cross_holeBitmapLen,     SpriteSize_32x32);
+    mainGfx[3]  = initObjBitmap(&oamMain, square_holeBitmap,    square_holeBitmapLen,    SpriteSize_32x32);
+    mainGfx[4]  = initObjBitmap(&oamMain, slider_l_holeBitmap,  slider_l_holeBitmapLen,  SpriteSize_32x32);
+    mainGfx[5]  = initObjBitmap(&oamMain, slider_r_holeBitmap,  slider_r_holeBitmapLen,  SpriteSize_32x32);
+    mainGfx[6]  = initObjBitmap(&oamMain, slider_lh_holeBitmap, slider_lh_holeBitmapLen, SpriteSize_32x32);
+    mainGfx[7]  = initObjBitmap(&oamMain, slider_rh_holeBitmap, slider_rh_holeBitmapLen, SpriteSize_32x32);
+    mainGfx[8]  = initObjBitmap(&oamMain, triangleBitmap,       triangleBitmapLen,       SpriteSize_32x32);
+    mainGfx[9]  = initObjBitmap(&oamMain, circleBitmap,         circleBitmapLen,         SpriteSize_32x32);
+    mainGfx[10] = initObjBitmap(&oamMain, crossBitmap,          crossBitmapLen,          SpriteSize_32x32);
+    mainGfx[11] = initObjBitmap(&oamMain, squareBitmap,         squareBitmapLen,         SpriteSize_32x32);
+    mainGfx[12] = initObjBitmap(&oamMain, slider_lBitmap,       slider_lBitmapLen,       SpriteSize_32x32);
+    mainGfx[13] = initObjBitmap(&oamMain, slider_rBitmap,       slider_rBitmapLen,       SpriteSize_32x32);
+    mainGfx[14] = initObjBitmap(&oamMain, slider_lhBitmap,      slider_lhBitmapLen,      SpriteSize_32x32);
+    mainGfx[15] = initObjBitmap(&oamMain, slider_rhBitmap,      slider_rhBitmapLen,      SpriteSize_32x32);
+    mainGfx[16] = initObjBitmap(&oamMain, arrowBitmap,          arrowBitmapLen,          SpriteSize_32x32);
+    mainGfx[17] = initObjBitmap(&oamMain, holdBitmap,           holdBitmapLen,           SpriteSize_32x16);
+    mainGfx[18] = initObjBitmap(&oamMain, coolBitmap,           coolBitmapLen,           SpriteSize_32x8);
+    mainGfx[19] = initObjBitmap(&oamMain, fineBitmap,           fineBitmapLen,           SpriteSize_32x8);
+    mainGfx[20] = initObjBitmap(&oamMain, safeBitmap,           safeBitmapLen,           SpriteSize_32x8);
+    mainGfx[21] = initObjBitmap(&oamMain, sadBitmap,            sadBitmapLen,            SpriteSize_32x8);
+    mainGfx[22] = initObjBitmap(&oamMain, missBitmap,           missBitmapLen,           SpriteSize_32x8);
+
+    // Allocate bitmap data for the sub screen objects
+    subGfx[0]  = initObjBitmap(&oamSub, life_emptyBitmap, life_emptyBitmapLen, SpriteSize_32x8);
+    subGfx[1]  = initObjBitmap(&oamSub, life_fullBitmap,  life_fullBitmapLen,  SpriteSize_32x8);
 }
 
 static uint32_t calcRefScore()
@@ -374,6 +382,7 @@ void gameLoop()
         updateChart();
 
         oamClear(&oamMain, 0, 0);
+        oamClear(&oamSub, 0, 0);
         int sprite = 0;
         int rotscale = 0;
 
@@ -676,7 +685,7 @@ void gameLoop()
 
             // Draw the accuracy indicator to the left of the combo counter
             oamSet(&oamMain, sprite++, statCurX + x - 32, statCurY, 0, 1, SpriteSize_32x8,
-                SpriteColorFormat_Bmp, gameGfx[18 + statType], -1, false, false, false, false, false);
+                SpriteColorFormat_Bmp, mainGfx[18 + statType], -1, false, false, false, false, false);
 
             statTimer--;
         }
@@ -693,7 +702,7 @@ void gameLoop()
             {
                 uint8_t type = (notes[i].type & 0xF) + ((notes[i].type & BIT(7)) ? 10 : 8);
                 oamSet(&oamMain, sprite++, x, y, 0, 1, SpriteSize_32x32,
-                    SpriteColorFormat_Bmp, gameGfx[type], -1, false, false, false, false, false);
+                    SpriteColorFormat_Bmp, mainGfx[type], -1, false, false, false, false, false);
             }
         }
 
@@ -705,7 +714,7 @@ void gameLoop()
                 // Draw a held slide note hole with no timing arrow
                 uint8_t type = (notes[i].type & 0xF) + 2;
                 oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, 1, SpriteSize_32x32,
-                    SpriteColorFormat_Bmp, gameGfx[type], -1, false, false, false, false, false);
+                    SpriteColorFormat_Bmp, mainGfx[type], -1, false, false, false, false, false);
             }
             else
             {
@@ -717,34 +726,59 @@ void gameLoop()
                 {
                     oamRotateScale(&oamMain, rotscale, angle, intToFixed(1, 8), intToFixed(1, 8));
                     oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, 1, SpriteSize_32x32,
-                        SpriteColorFormat_Bmp, gameGfx[16], rotscale++, false, false, false, false, false);
+                        SpriteColorFormat_Bmp, mainGfx[16], rotscale++, false, false, false, false, false);
                 }
 
                 // Draw the hold indicator if the note is held
                 if (notes[i].type & BIT(4))
                 {
                     oamSet(&oamMain, sprite++, notes[i].x, notes[i].y + 20, 0, 1, SpriteSize_32x16,
-                        SpriteColorFormat_Bmp, gameGfx[17], -1, false, false, false, false, false);
+                        SpriteColorFormat_Bmp, mainGfx[17], -1, false, false, false, false, false);
                 }
 
                 // Draw a regular note hole
                 uint8_t type = (notes[i].type & 0xF);
                 oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, 1, SpriteSize_32x32,
-                    SpriteColorFormat_Bmp, gameGfx[type], -1, false, false, false, false, false);
+                    SpriteColorFormat_Bmp, mainGfx[type], -1, false, false, false, false, false);
             }
         }
 
-        // Show the life gauge and score on the bottom screen
-        printf("\x1b[0;0HLife: %03u", life);
-        printf("\x1b[0;18HScore: %07lu", scoreBase + scoreHold + scoreSlide);
+        // Draw the empty life gauge, split into 2 rotscaled sprites
+        oamRotateScale(&oamSub, 0, 0, 1 << 7, 1 << 8);
+        oamSet(&oamSub, 0, 4 * 8, -4, 1, 1, SpriteSize_32x8,
+            SpriteColorFormat_Bmp, subGfx[0], 0, true, false, false, false, false);
+        oamSet(&oamSub, 1, 4 * 8 + 64, -4, 1, 1, SpriteSize_32x8,
+            SpriteColorFormat_Bmp, subGfx[0], 0, true, false, false, false, false);
 
-        // Calculate the current clear percentage and show it on the bottom screen
+        if (life > 127)
+        {
+            // Draw one full life gauge sprite, and scale a second one based on upper life
+            oamRotateScale(&oamSub, 1, 0, (1 << 14) / (life - 127), 1 << 8);
+            oamSet(&oamSub, 2, 4 * 8, -4, 0, 1, SpriteSize_32x8,
+                SpriteColorFormat_Bmp, subGfx[1], 0, true, false, false, false, false);
+            oamSet(&oamSub, 3, 4 * 8 + 32 + (life - 127) / 4, -4, 0, 1, SpriteSize_32x8,
+                SpriteColorFormat_Bmp, subGfx[1], 1, true, false, false, false, false);
+        }
+        else if (life > 0)
+        {
+            // Draw one life gauge sprite, scaled based on lower life
+            oamRotateScale(&oamSub, 1, 0, (1 << 14) / (life + 1), 1 << 8);
+            oamSet(&oamSub, 2, 4 * 8 - 32 + (life + 1) / 4, -4, 0, 1, SpriteSize_32x8,
+                SpriteColorFormat_Bmp, subGfx[1], 1, true, false, false, false, false);
+        }
+
+        // Calculate the current clear percentage
         // TODO: change hold coefficient based on difficulty
         float clear = (100.0f * (scoreBase + std::min(scoreRef / 20, scoreHold / 5))) / scoreRef;
-        printf("\x1b[23;0HClear: %.02f%%", clear);
+
+        // Draw the sub screen text-based UI elements
+        printf("\x1b[0;0HLIFE");
+        printf("\x1b[0;25H%07lu", scoreBase + scoreHold + scoreSlide);
+        printf("\x1b[23;0H%.02f%%", clear);
 
         // Move to the next frame
         oamUpdate(&oamMain);
+        oamUpdate(&oamSub);
         swiWaitForVBlank();
         timer += FRAME_TIME;
 

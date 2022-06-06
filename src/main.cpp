@@ -29,7 +29,6 @@
 int main()
 {
     fatInitDefault();
-    consoleDemoInit();
 
     // Create directories in case they don't exist
     mkdir("/project-ds",     0777);
@@ -42,6 +41,13 @@ int main()
     vramSetBankA(VRAM_A_MAIN_SPRITE);
     oamInit(&oamMain, SpriteMapping_Bmp_1D_128, false);
     BG_PALETTE[0] = 0x4210;
+
+    // Setup graphics on the sub screen
+    videoSetModeSub(MODE_3_2D);
+    vramSetBankC(VRAM_C_SUB_BG);
+    vramSetBankD(VRAM_D_SUB_SPRITE);
+    oamInit(&oamSub, SpriteMapping_Bmp_1D_128, false);
+    consoleInit(nullptr, 0, BgType_Text4bpp, BgSize_T_256x256, 2, 0, false, true);
 
     // Initialize maxmod without a soundbank
     mm_ds_system sys;
