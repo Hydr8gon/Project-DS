@@ -181,7 +181,7 @@ void songList()
     bool retry = (!song && convertSong(oggName, pcmName));
     fclose(song);
 
-    loadChart(dscName, pcmName, retry);
+    loadChart(dscName, pcmName, difficulty, retry);
 }
 
 void retryMenu()

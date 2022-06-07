@@ -104,6 +104,9 @@ static uint32_t scoreHold = 0;
 static uint32_t scoreSlide = 0;
 static uint32_t scoreRef = 0;
 
+static uint8_t clearRate = 30;
+static uint8_t holdDivide = 1;
+
 static const uint8_t paramCounts[0x100] =
 {
     0,  1,  4,  2,  2,  2,  7,  4,  2,  6,  2,  1,  6,  2,  1,  1, // 0x00-0x0F
@@ -767,9 +770,9 @@ void gameLoop()
                 SpriteColorFormat_Bmp, subGfx[1], 1, true, false, false, false, false);
         }
 
-        // Calculate the current clear percentage
-        // TODO: change hold coefficient based on difficulty
-        float clear = (100.0f * (scoreBase + std::min(scoreRef / 20, scoreHold / 5))) / scoreRef;
+        // Calculate the current clear percentage, with up to 5% bonus from holds
+        uint32_t holdBonus = std::min(scoreRef / 20, (scoreHold * 4) / holdDivide);
+        float clear = (100.0f * (scoreBase + holdBonus)) / scoreRef;
 
         // Draw the sub screen text-based UI elements
         printf("\x1b[0;0HLIFE");
@@ -794,7 +797,10 @@ void gameLoop()
         }
         else if (finished && notes.empty())
         {
-            printf("\x1b[6;13HCLEAR!\n");
+            if (clear < clearRate)
+                printf("\x1b[6;12HFAILED...\n");
+            else
+                printf("\x1b[6;13HCLEAR!\n");
             retryMenu();
         }
     }
@@ -825,7 +831,7 @@ void gameReset()
     scoreSlide = 0;
 }
 
-void loadChart(std::string &chartName, std::string &songName2, bool retry)
+void loadChart(std::string &chartName, std::string &songName2, size_t difficulty, bool retry)
 {
     // Load a new chart file into memory
     FILE *chartFile = fopen(chartName.c_str(), "rb");
@@ -839,6 +845,30 @@ void loadChart(std::string &chartName, std::string &songName2, bool retry)
 
     // Set the chart's song filename
     songName = songName2;
+
+    // Set the difficulty-based modifiers
+    switch (difficulty)
+    {
+        case 0: // Easy
+            clearRate = 30;
+            holdDivide = 1; // 4 / 1 = 4
+            break;
+
+        case 1: // Normal
+            clearRate = 50;
+            holdDivide = 2; // 4 / 2 = 2
+            break;
+
+        case 2: // Hard
+            clearRate = 60;
+            holdDivide = 8; // 4 / 8 = 0.5
+            break;
+
+        default: // Extreme
+            clearRate = 70;
+            holdDivide = 20; // 4 / 20 = 0.2
+            break;
+    }
 
     // Calculate the reference score for clear percentage
     scoreRef = calcRefScore();

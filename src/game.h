@@ -27,6 +27,6 @@ extern void gameInit();
 extern void gameLoop();
 extern void gameReset();
 
-extern void loadChart(std::string &chartName, std::string &songName, bool retry);
+extern void loadChart(std::string &chartName, std::string &songName, size_t difficulty, bool retry);
 
 #endif // GAME_H
