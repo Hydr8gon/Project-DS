@@ -20,6 +20,8 @@
 #ifndef MENU_H
 #define MENU_H
 
+extern void menuInit();
+
 extern void songList();
 extern void retryMenu();
 

@@ -60,6 +60,7 @@ int main()
     // Initialize the game
     audioInit();
     gameInit();
+    menuInit();
 
     // Run the game
     gameLoop();
