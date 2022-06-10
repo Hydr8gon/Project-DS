@@ -365,8 +365,8 @@ static void updateChart()
                         size_t split = lyric.substr(0, 32).find_last_of(" ");
                         size_t offset = (32 - split) / 2;
                         printf("\x1b[10;%uH%s", offset, lyric.substr(0, split).c_str());
-                        offset = (32 - (lyric.length() - (split + 1))) / 2;
-                        printf("\x1b[12;%uH%s", offset, lyric.substr(split + 1).c_str());
+                        offset = (32 - std::min(32U, lyric.length() - (split + 1))) / 2;
+                        printf("\x1b[12;%uH%s", offset, lyric.substr(split + 1, 32).c_str());
                     }
                     else
                     {
