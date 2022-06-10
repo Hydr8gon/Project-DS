@@ -163,6 +163,11 @@ time. Parameters 6 and 7 are related to note wobble when flying in.
  20   | Cross (event)
  21   | Square (event)
 
+0x18 - LYRIC
+Sets a lyric from the song database to be displayed on-screen. Parameter 1 is
+the lyric index; an index of 0 means no lyric will be shown. Parameter 2 is
+unknown, and seems to always be set to -1.
+
 0x19 - MUSIC_PLAY
 Starts playback of the associated music file. No parameters.
 

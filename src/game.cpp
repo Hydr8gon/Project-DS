@@ -52,6 +52,7 @@
 
 #include "game.h"
 #include "audio.h"
+#include "database.h"
 #include "menu.h"
 
 #define PI 3.14159
@@ -168,6 +169,13 @@ void gameInit()
     // Allocate bitmap data for the sub screen objects
     subGfx[0]  = initObjBitmap(&oamSub, life_emptyBitmap, life_emptyBitmapLen, SpriteSize_32x8);
     subGfx[1]  = initObjBitmap(&oamSub, life_fullBitmap,  life_fullBitmapLen,  SpriteSize_32x8);
+}
+
+static void clearLyrics()
+{
+    // Clear lyrics with empty space so new ones can be drawn
+    for (int i = 10; i <= 12; i++)
+        printf("\x1b[%d;0H                                ", i);
 }
 
 static uint32_t calcRefScore()
@@ -339,6 +347,35 @@ static void updateChart()
                 note.y = y;
                 note.time = timer + flyTime;
                 notes.push_back(note);
+                break;
+            }
+
+            case 0x18: // Lyric
+            {
+                clearLyrics();
+
+                // Get a lyric from the song database and display it on the bottom screen
+                std::vector<std::string> &lyrics = songData[std::stoi(songName.substr(19, 3))].lyrics;
+                if (chart[counter + 1] > 0 && chart[counter + 1] < lyrics.size())
+                {
+                    std::string &lyric = lyrics[chart[counter + 1] - 1];
+                    if (lyric.length() > 32)
+                    {
+                        // Split the lyric into two lines and draw them, centered
+                        size_t split = lyric.substr(0, 32).find_last_of(" ");
+                        size_t offset = (32 - split) / 2;
+                        printf("\x1b[10;%uH%s", offset, lyric.substr(0, split).c_str());
+                        offset = (32 - (lyric.length() - (split + 1))) / 2;
+                        printf("\x1b[12;%uH%s", offset, lyric.substr(split + 1).c_str());
+                    }
+                    else
+                    {
+                        // Draw the lyric on one line, centered
+                        size_t offset = (32 - lyric.length()) / 2;
+                        printf("\x1b[11;%uH%s", offset, lyric.c_str());
+                    }
+                }
+
                 break;
             }
 
@@ -788,11 +825,13 @@ void gameLoop()
         // Check the stop conditions
         if (down & KEY_START)
         {
+            clearLyrics();
             retryMenu();
         }
         else if (life == 0)
         {
             printf("\x1b[6;12HFAILED...\n");
+            clearLyrics();
             retryMenu();
         }
         else if (finished && notes.empty())
@@ -801,6 +840,7 @@ void gameLoop()
                 printf("\x1b[6;12HFAILED...\n");
             else
                 printf("\x1b[6;13HCLEAR!\n");
+            clearLyrics();
             retryMenu();
         }
     }

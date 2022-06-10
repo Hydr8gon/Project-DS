@@ -25,6 +25,7 @@
 
 #include "menu.h"
 #include "audio.h"
+#include "database.h"
 #include "game.h"
 
 static const char a[] = {' ', '>'};
@@ -38,44 +39,10 @@ static const std::string ends[] =
     "_extreme_1.dsc"
 };
 
-static std::string songs[1000];
 static std::vector<std::string> charts[5];
 
 void menuInit()
 {
-    // Scan database files (.txt) for English song names
-    if (DIR *dir = opendir("/project-ds"))
-    {
-        while (dirent *entry = readdir(dir))
-        {
-            std::string name = (std::string)"/project-ds/" + entry->d_name;
-            if (name.substr(name.length() - 4) == ".txt")
-            {
-                if (FILE *file = fopen(name.c_str(), "r"))
-                {
-                    char line[512];
-                    while (fgets(line, 512, file))
-                    {
-                        std::string str = line;
-                        if (str.length() > 20 && str.substr(7, 12) == "song_name_en")
-                        {
-                            // Set a song name, stripped of invalid characters and trimmed to fit on-screen
-                            std::string &song = songs[std::stoi(str.substr(3, 3))];
-                            song = str.substr(20);
-                            song.erase(remove_if(song.begin(), song.end(),
-                                [](const char &c) { return c >= 128; }), song.end());
-                            song = song.substr(0, 31);
-                        }
-                    }
-
-                    fclose(file);
-                }
-            }
-        }
-
-        closedir(dir);
-    }
-
     // Scan chart files (.dsc) and build song ID lists for each difficulty
     if (DIR *dir = opendir("/project-ds/dsc"))
     {
@@ -143,7 +110,7 @@ void songList()
         // Display a section of files around the current selection
         for (size_t i = offset; i < offset + std::min(charts[difficulty].size(), 21U); i++)
         {
-            std::string song = songs[std::stoi(charts[difficulty][i])];
+            std::string song = songData[std::stoi(charts[difficulty][i])].name;
             if (song == "") song = "pv_" + charts[difficulty][i];
             printf("\x1b[%d;0H%c%s\n", i - offset, a[i == selection], song.c_str());
         }

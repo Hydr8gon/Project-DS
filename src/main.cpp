@@ -23,6 +23,7 @@
 #include <sys/stat.h>
 
 #include "audio.h"
+#include "database.h"
 #include "game.h"
 #include "menu.h"
 
@@ -59,6 +60,7 @@ int main()
 
     // Initialize the game
     audioInit();
+    databaseInit();
     gameInit();
     menuInit();
 
