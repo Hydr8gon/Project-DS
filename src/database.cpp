@@ -73,7 +73,7 @@ void databaseInit()
                             // Set a song lyric from the database
                             std::string lyric = str.substr(20);
                             formatString(lyric);
-                            songData[std::stoi(str.substr(3, 3))].lyrics.push_back(lyric);
+                            songData[std::stoi(str.substr(3, 3))].lyrics[std::stoi(str.substr(16, 3))] = lyric;
                         }
                     }
 

@@ -393,10 +393,11 @@ static void updateChart()
                 clearLyrics();
 
                 // Get a lyric from the song database and display it on the bottom screen
-                std::vector<std::string> &lyrics = songData[std::stoi(songName.substr(19, 3))].lyrics;
-                if (chart[counter + 1] > 0 && chart[counter + 1] < lyrics.size())
+                if (chart[counter + 1] < 128)
                 {
-                    std::string &lyric = lyrics[chart[counter + 1] - 1];
+                    std::string *lyrics = songData[std::stoi(songName.substr(19, 3))].lyrics;
+                    std::string &lyric = lyrics[chart[counter + 1]];
+
                     if (lyric.length() > 32)
                     {
                         // Split the lyric into two lines and draw them, centered

@@ -21,12 +21,11 @@
 #define DATABASE_H
 
 #include <string>
-#include <vector>
 
 struct SongData
 {
     std::string name;
-    std::vector<std::string> lyrics;
+    std::string lyrics[128];
 };
 
 extern SongData songData[1000];
