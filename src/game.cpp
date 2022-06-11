@@ -73,6 +73,7 @@ static std::deque<Note> notes;
 
 static uint16_t *numGfx[10];
 static uint16_t *mainGfx[23];
+static uint16_t *multiGfx[9];
 static uint16_t *subGfx[2];
 
 static size_t chartSize = 0;
@@ -134,6 +135,32 @@ static uint16_t *initObjBitmap(OamState *oam, const unsigned int *bitmap, size_t
     return gfx;
 }
 
+static uint16_t *initObjBitmapMulti(OamState *oam, const unsigned int *bitmap, size_t bitmapLen, SpriteSize size)
+{
+    static uint16_t data[SpriteSize_32x32 / sizeof(uint16_t)];
+
+    // Replace colors in a bitmap to create a multi variant
+    for (size_t i = 0; i < bitmapLen / sizeof(uint16_t); i++)
+    {
+        switch (((uint16_t*)bitmap)[i])
+        {
+            case ARGB16(1, 31, 31, 31):
+                data[i] = ARGB16(1, 31, 31, 0);
+                break;
+
+            case ARGB16(1, 5, 5, 10):
+                data[i] = ARGB16(1, 25, 5, 0);
+                break;
+
+            default:
+                data[i] = ((uint16_t*)bitmap)[i];
+                break;
+        }
+    }
+
+    return initObjBitmap(oam, (unsigned int*)data, bitmapLen, size);
+}
+
 void gameInit()
 {
     // Allocate bitmap data for the combo numbers
@@ -165,6 +192,17 @@ void gameInit()
     mainGfx[20] = initObjBitmap(&oamMain, safeBitmap,           safeBitmapLen,           SpriteSize_32x8);
     mainGfx[21] = initObjBitmap(&oamMain, sadBitmap,            sadBitmapLen,            SpriteSize_32x8);
     mainGfx[22] = initObjBitmap(&oamMain, missBitmap,           missBitmapLen,           SpriteSize_32x8);
+
+    // Allocate bitmap data for the multi variants of hole objects
+    multiGfx[0] = initObjBitmapMulti(&oamMain, triangle_holeBitmap,  triangle_holeBitmapLen,  SpriteSize_32x32);
+    multiGfx[1] = initObjBitmapMulti(&oamMain, circle_holeBitmap,    circle_holeBitmapLen,    SpriteSize_32x32);
+    multiGfx[2] = initObjBitmapMulti(&oamMain, cross_holeBitmap,     cross_holeBitmapLen,     SpriteSize_32x32);
+    multiGfx[3] = initObjBitmapMulti(&oamMain, square_holeBitmap,    square_holeBitmapLen,    SpriteSize_32x32);
+    multiGfx[4] = initObjBitmapMulti(&oamMain, slider_l_holeBitmap,  slider_l_holeBitmapLen,  SpriteSize_32x32);
+    multiGfx[5] = initObjBitmapMulti(&oamMain, slider_r_holeBitmap,  slider_r_holeBitmapLen,  SpriteSize_32x32);
+    multiGfx[6] = initObjBitmapMulti(&oamMain, slider_lh_holeBitmap, slider_lh_holeBitmapLen, SpriteSize_32x32);
+    multiGfx[7] = initObjBitmapMulti(&oamMain, slider_rh_holeBitmap, slider_rh_holeBitmapLen, SpriteSize_32x32);
+    multiGfx[8] = initObjBitmapMulti(&oamMain, holdBitmap,           holdBitmapLen,           SpriteSize_32x16);
 
     // Allocate bitmap data for the sub screen objects
     subGfx[0]  = initObjBitmap(&oamSub, life_emptyBitmap, life_emptyBitmapLen, SpriteSize_32x8);
@@ -749,12 +787,16 @@ void gameLoop()
         // Draw holes for all queued notes
         for (size_t i = 0; i < notes.size(); i++)
         {
+            // Check if this is a multi-note so variant graphics can be used
+            bool multi = ((i > 0 && notes[i - 1].time == notes[i].time) ||
+                (i < notes.size() - 1 && notes[i + 1].time == notes[i].time));
+
             if (notes[i].type & BIT(7)) // Held slides
             {
                 // Draw a held slide note hole with no timing arrow
                 uint8_t type = (notes[i].type & 0xF) + 2;
                 oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, 1, SpriteSize_32x32,
-                    SpriteColorFormat_Bmp, mainGfx[type], -1, false, false, false, false, false);
+                    SpriteColorFormat_Bmp, (multi ? multiGfx : mainGfx)[type], -1, false, false, false, false, false);
             }
             else
             {
@@ -773,13 +815,13 @@ void gameLoop()
                 if (notes[i].type & BIT(4))
                 {
                     oamSet(&oamMain, sprite++, notes[i].x, notes[i].y + 20, 0, 1, SpriteSize_32x16,
-                        SpriteColorFormat_Bmp, mainGfx[17], -1, false, false, false, false, false);
+                        SpriteColorFormat_Bmp, multi ? multiGfx[8] : mainGfx[17], -1, false, false, false, false, false);
                 }
 
                 // Draw a regular note hole
                 uint8_t type = (notes[i].type & 0xF);
                 oamSet(&oamMain, sprite++, notes[i].x, notes[i].y, 0, 1, SpriteSize_32x32,
-                    SpriteColorFormat_Bmp, mainGfx[type], -1, false, false, false, false, false);
+                    SpriteColorFormat_Bmp, (multi ? multiGfx : mainGfx)[type], -1, false, false, false, false, false);
             }
         }
 

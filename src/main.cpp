@@ -41,7 +41,7 @@ int main()
     videoSetMode(MODE_3_2D);
     vramSetBankA(VRAM_A_MAIN_SPRITE);
     oamInit(&oamMain, SpriteMapping_Bmp_1D_128, false);
-    BG_PALETTE[0] = 0x4210;
+    BG_PALETTE[0] = ARGB16(1, 16, 16, 16);
 
     // Setup graphics on the sub screen
     videoSetModeSub(MODE_3_2D);
