@@ -47,6 +47,13 @@ static void formatString(std::string &string)
 
 void databaseInit()
 {
+    // Assign default song names as fallbacks
+    for (size_t i = 0; i < 1000; i++)
+    {
+        std::string num = std::to_string(i);
+        songData[i].name = "pv_" + std::string(3 - num.length(), '0') + num;
+    }
+
     // Scan database files (.txt) for English song information
     if (DIR *dir = opendir("/project-ds"))
     {
@@ -61,19 +68,49 @@ void databaseInit()
                     while (fgets(line, 512, file))
                     {
                         std::string str = line;
-                        if (str.length() > 20 && str.substr(7, 12) == "song_name_en")
+                        if (str.length() > 20 && str.substr(7, 13) == "song_name_en=")
                         {
                             // Set a song name from the database
                             std::string name = str.substr(20);
                             formatString(name);
-                            songData[std::stoi(str.substr(3, 3))].name = name.substr(0, 31);
+                            songData[std::stoi(str.substr(3, 3))].name = name;
                         }
-                        else if (str.length() > 20 && str.substr(7, 8) == "lyric_en")
+                        else if (str.length() > 20 && str.substr(7, 9) == "lyric_en.")
                         {
                             // Set a song lyric from the database
                             std::string lyric = str.substr(20);
                             formatString(lyric);
                             songData[std::stoi(str.substr(3, 3))].lyrics[std::stoi(str.substr(16, 3))] = lyric;
+                        }
+                        else if (str.length() > 41 && str.substr(7, 24) == "difficulty.easy.0.level=")
+                        {
+                            // Set an easy difficulty level as fixed-point with a 1-bit fractional
+                            uint8_t diff = std::stoi(str.substr(37, 2)) * 2 + std::stoi(str.substr(40, 1)) / 5;
+                            songData[std::stoi(str.substr(3, 3))].diffEasy = diff;
+                        }
+                        else if (str.length() > 43 && str.substr(7, 26) == "difficulty.normal.0.level=")
+                        {
+                            // Set a normal difficulty level as fixed-point with a 1-bit fractional
+                            uint8_t diff = std::stoi(str.substr(39, 2)) * 2 + std::stoi(str.substr(42, 1)) / 5;
+                            songData[std::stoi(str.substr(3, 3))].diffNorm = diff;
+                        }
+                        else if (str.length() > 41 && str.substr(7, 24) == "difficulty.hard.0.level=")
+                        {
+                            // Set a hard difficulty level as fixed-point with a 1-bit fractional
+                            uint8_t diff = std::stoi(str.substr(37, 2)) * 2 + std::stoi(str.substr(40, 1)) / 5;
+                            songData[std::stoi(str.substr(3, 3))].diffHard = diff;
+                        }
+                        else if (str.length() > 44 && str.substr(7, 27) == "difficulty.extreme.0.level=")
+                        {
+                            // Set an extreme difficulty level as fixed-point with a 1-bit fractional
+                            uint8_t diff = std::stoi(str.substr(40, 2)) * 2 + std::stoi(str.substr(43, 1)) / 5;
+                            songData[std::stoi(str.substr(3, 3))].diffExtr = diff;
+                        }
+                        else if (str.length() > 44 && str.substr(7, 27) == "difficulty.extreme.1.level=")
+                        {
+                            // Set an extra extreme difficulty level as fixed-point with a 1-bit fractional
+                            uint8_t diff = std::stoi(str.substr(40, 2)) * 2 + std::stoi(str.substr(43, 1)) / 5;
+                            songData[std::stoi(str.substr(3, 3))].diffExEx = diff;
                         }
                     }
 

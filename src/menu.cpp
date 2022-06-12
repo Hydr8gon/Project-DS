@@ -41,6 +41,74 @@ static const std::string ends[] =
 
 static std::vector<std::string> charts[5];
 
+static void sortSongs()
+{
+    // Toggle between alphabetical and difficulty level sorting
+    static bool mode = false;
+    mode = !mode;
+
+    // Sort the songs in each difficulty tab
+    for (int i = 0; i < 5; i++)
+    {
+        sort(charts[i].begin(), charts[i].end(), [i](std::string &a, std::string &b)
+        {
+            uint8_t diffA = (songData[std::stoi(a)].difficulty >> (i * 5)) & 0x1F;
+            uint8_t diffB = (songData[std::stoi(b)].difficulty >> (i * 5)) & 0x1F;
+
+            // Sort alphabetically in alphabetical mode, or as a fallback if difficulties match
+            if (mode || diffA == diffB)
+            {
+                std::string &nameA = songData[std::stoi(a)].name;
+                std::string &nameB = songData[std::stoi(b)].name;
+                size_t j = 0, k = 0;
+
+                // Define a table of custom character priorities for sorting
+                // Letter cases are equal, and numbers come after letters
+                static uint8_t prios[0x80] =
+                {
+                     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, // 0x00-0x0F
+                     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, // 0x10-0x1F
+                     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, // 0x20-0x2F
+                    28, 29, 30, 31, 32, 33, 34, 35, 36, 37,  0,  0,  0,  0,  0,  0, // 0x30-0x3F
+                     0,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, // 0x40-0x4F
+                    17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,  0,  0,  0,  0,  0, // 0x50-0x5F
+                     0,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, // 0x60-0x6F
+                    17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,  0,  0,  0,  0,  0, // 0x70-0x7F
+                };
+
+                // Ignore leading characters that aren't letters or numbers in the first string
+                while (!prios[(uint8_t)nameA[j]])
+                    if (++j == nameA.length())
+                        return true;
+
+                // Ignore leading characters that aren't letters or numbers in the second string
+                while (!prios[(uint8_t)nameB[k]])
+                    if (++k == nameB.length())
+                        return false;
+
+                while (true)
+                {
+                    // Search the strings until a non-matching priority is found
+                    if (prios[(uint8_t)nameA[j]] == prios[(uint8_t)nameB[k]])
+                    {
+                        if (++j == nameA.length())
+                            return true;
+                        if (++k == nameB.length())
+                            return false;
+                        continue;
+                    }
+
+                    // Sort the songs based on the first non-matching character priority
+                    return prios[(uint8_t)nameA[j]] < prios[(uint8_t)nameB[k]];
+                }
+            }
+
+            // Sort the songs based on difficulty level
+            return diffA < diffB;
+        });
+    }
+}
+
 void menuInit()
 {
     // Scan chart files (.dsc) and build song ID lists for each difficulty
@@ -66,8 +134,7 @@ void menuInit()
         closedir(dir);
     }
 
-    for (int i = 0; i < 5; i++)
-        sort(charts[i].begin(), charts[i].end());
+    sortSongs();
 }
 
 void songList()
@@ -107,12 +174,12 @@ void songList()
 
         consoleClear();
 
-        // Display a section of files around the current selection
+        // Display a section of songs around the current selection
         for (size_t i = offset; i < offset + std::min(charts[difficulty].size(), 21U); i++)
         {
-            std::string song = songData[std::stoi(charts[difficulty][i])].name;
-            if (song == "") song = "pv_" + charts[difficulty][i];
-            printf("\x1b[%d;0H%c%s\n", i - offset, a[i == selection], song.c_str());
+            SongData &data = songData[std::stoi(charts[difficulty][i])];
+            printf("\x1b[%d;0H%c%s\n", i - offset, a[i == selection], data.name.substr(0, 26).c_str());
+            printf("\x1b[%d;28H%4.1f\n", i - offset, ((float)((data.difficulty >> (difficulty * 5)) & 0x1F)) / 2);
         }
 
         // Display the difficulty tabs
@@ -124,7 +191,7 @@ void songList()
         keysDown();
 
         // Wait for button input
-        while (!(down & (KEY_A | KEY_LEFT | KEY_RIGHT)) && !(held & (KEY_UP | KEY_DOWN)))
+        while (!(down & (KEY_A | KEY_Y | KEY_LEFT | KEY_RIGHT)) && !(held & (KEY_UP | KEY_DOWN)))
         {
             scanKeys();
             down = keysDown();
@@ -152,6 +219,12 @@ void songList()
                 consoleClear();
                 break;
             }
+        }
+        else if (down & KEY_Y)
+        {
+            // Change how the songs are sorted
+            sortSongs();
+            selection = 0;
         }
         else if (down & KEY_LEFT)
         {

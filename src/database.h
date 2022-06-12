@@ -26,6 +26,20 @@ struct SongData
 {
     std::string name;
     std::string lyrics[128];
+
+    union
+    {
+        struct __attribute__((packed))
+        {
+            uint32_t diffEasy : 5;
+            uint32_t diffNorm : 5;
+            uint32_t diffHard : 5;
+            uint32_t diffExtr : 5;
+            uint32_t diffExEx : 5;
+        };
+
+        uint32_t difficulty;
+    };
 };
 
 extern SongData songData[1000];
