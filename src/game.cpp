@@ -512,7 +512,6 @@ void gameLoop()
                         statTimer = 60;
                         statCurX = statX;
                         statCurY = statY;
-                        results.comboMax = std::max(results.comboMax, combo);
                         results.misses++;
                         combo = 0;
 
@@ -860,6 +859,10 @@ void gameLoop()
                 SpriteColorFormat_Bmp, subGfx[1], 1, true, false, false, false, false);
         }
 
+        // Update the maximum combo result
+        if (combo > results.comboMax)
+            results.comboMax = combo;
+
         // Calculate the current clear percentage, with up to 5% bonus from holds
         uint32_t holdBonus = std::min(scoreRef / 20, (results.scoreHold * 4) / holdDivide);
         results.clear = (100.0f * (results.scoreBase + holdBonus)) / scoreRef;
@@ -884,7 +887,6 @@ void gameLoop()
         else if (life == 0 || (finished && notes.empty()))
         {
             clearLyrics();
-            results.comboMax = std::max(results.comboMax, combo);
             resultsScreen(&results, life == 0);
         }
     }
