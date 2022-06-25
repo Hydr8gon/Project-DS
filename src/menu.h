@@ -20,9 +20,12 @@
 #ifndef MENU_H
 #define MENU_H
 
+struct Results;
+
 extern void menuInit();
 
 extern void songList();
 extern void retryMenu();
+extern void resultsScreen(Results *results, bool fail);
 
 #endif // MENU_H

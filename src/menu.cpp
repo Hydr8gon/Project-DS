@@ -23,6 +23,12 @@
 
 #include <nds.h>
 
+#include "cool.h"
+#include "fine.h"
+#include "safe.h"
+#include "sad.h"
+#include "miss.h"
+
 #include "menu.h"
 #include "audio.h"
 #include "database.h"
@@ -39,7 +45,11 @@ static const std::string ends[] =
     "_extreme_1.dsc"
 };
 
+static uint16_t *menuGfx[10];
+
 static std::vector<std::string> charts[5];
+static size_t difficulty = 1;
+static size_t selection = 0;
 
 static void sortSongs()
 {
@@ -135,6 +145,13 @@ void menuInit()
     }
 
     sortSongs();
+
+    // Allocate bitmap data for the menu objects
+    menuGfx[0] = initObjBitmap(&oamSub, coolBitmap, coolBitmapLen, SpriteSize_32x8);
+    menuGfx[1] = initObjBitmap(&oamSub, fineBitmap, fineBitmapLen, SpriteSize_32x8);
+    menuGfx[2] = initObjBitmap(&oamSub, safeBitmap, safeBitmapLen, SpriteSize_32x8);
+    menuGfx[3] = initObjBitmap(&oamSub, sadBitmap,  sadBitmapLen,  SpriteSize_32x8);
+    menuGfx[4] = initObjBitmap(&oamSub, missBitmap, missBitmapLen, SpriteSize_32x8);
 }
 
 void songList()
@@ -155,8 +172,6 @@ void songList()
             swiWaitForVBlank();
     }
 
-    static size_t difficulty = 1;
-    static size_t selection = 0;
     uint8_t frames = 1;
 
     // Show the file browser
@@ -223,8 +238,11 @@ void songList()
         else if (down & KEY_Y)
         {
             // Change how the songs are sorted
-            sortSongs();
-            selection = 0;
+            if (frames++ == 0)
+            {
+                sortSongs();
+                selection = 0;
+            }
         }
         else if (down & KEY_LEFT)
         {
@@ -330,4 +348,101 @@ void retryMenu()
                 selection = 0;
         }
     }
+}
+
+void resultsScreen(Results *results, bool fail)
+{
+    stopSong();
+
+    // Clear the bottom screen
+    oamClear(&oamSub, 0, 0);
+    oamUpdate(&oamSub);
+    consoleClear();
+
+    static std::string diffs[5] =
+    {
+        "EASY",
+        "NORMAL",
+        "HARD",
+        "EXTREME",
+        "EX EXTREME"
+    };
+
+    // Show the difficulty and song name at the top
+    SongData &data = songData[std::stoi(charts[difficulty][selection])];
+    printf("\x1b[0;0H%s - %s", diffs[difficulty].c_str(), data.name.substr(0, 29 - diffs[difficulty].length()).c_str());
+
+    static uint8_t percents[5][3] =
+    {
+        { 30, 65, 80 }, // Easy
+        { 50, 75, 85 }, // Normal
+        { 60, 80, 90 }, // Hard
+        { 70, 85, 95 }, // Extreme
+        { 70, 85, 95 }  // Extra Extreme
+    };
+
+    // Assign a performance rank based on the results, and show it
+    if (results->comboMax == results->total)
+    {
+        printf("\x1b[6;13HCLEAR!");
+        printf("\x1b[7;6HPERFECT   %9.02f%%", results->clear);
+    }
+    else if (fail || results->clear < percents[difficulty][0])
+    {
+        printf("\x1b[6;10HNOT CLEAR...");
+        printf("\x1b[7;6HDROPxOUT  %9.02f%%", results->clear);
+    }
+    else if (results->clear < percents[difficulty][1])
+    {
+        printf("\x1b[6;13HCLEAR!");
+        printf("\x1b[7;6HSTANDARD  %9.02f%%", results->clear);
+    }
+    else if (results->clear < percents[difficulty][2])
+    {
+        printf("\x1b[6;13HCLEAR!");
+        printf("\x1b[7;6HGREAT     %9.02f%%", results->clear);
+    }
+    else
+    {
+        printf("\x1b[6;13HCLEAR!");
+        printf("\x1b[7;6HEXCELLENT %9.02f%%", results->clear);
+    }
+
+    // Use sprites for each of the different note accuracies
+    oamSet(&oamSub, 0, 6 * 8 - 2,  9 * 8, 0, 1, SpriteSize_32x8, SpriteColorFormat_Bmp, menuGfx[0], -1, false, false, false, false, false);
+    oamSet(&oamSub, 1, 6 * 8 - 3, 10 * 8, 0, 1, SpriteSize_32x8, SpriteColorFormat_Bmp, menuGfx[1], -1, false, false, false, false, false);
+    oamSet(&oamSub, 2, 6 * 8 - 2, 11 * 8, 0, 1, SpriteSize_32x8, SpriteColorFormat_Bmp, menuGfx[2], -1, false, false, false, false, false);
+    oamSet(&oamSub, 3, 6 * 8 - 6, 12 * 8, 0, 1, SpriteSize_32x8, SpriteColorFormat_Bmp, menuGfx[3], -1, false, false, false, false, false);
+    oamSet(&oamSub, 4, 6 * 8 - 3, 13 * 8, 0, 1, SpriteSize_32x8, SpriteColorFormat_Bmp, menuGfx[4], -1, false, false, false, false, false);
+    oamUpdate(&oamSub);
+
+    // Show statistics from the results
+    printf("\x1b[9;6H%12lu/%6.02f%%",  results->cools,  100.0f * results->cools  / results->total);
+    printf("\x1b[10;6H%12lu/%6.02f%%", results->fines,  100.0f * results->fines  / results->total);
+    printf("\x1b[11;6H%12lu/%6.02f%%", results->safes,  100.0f * results->safes  / results->total);
+    printf("\x1b[12;6H%12lu/%6.02f%%", results->sads,   100.0f * results->sads   / results->total);
+    printf("\x1b[13;6H%12lu/%6.02f%%", results->misses, 100.0f * results->misses / results->total);
+    printf("\x1b[14;6HCOMBO %13lu", results->comboMax);
+    printf("\x1b[15;6HHOLD  %13lu", results->scoreHold);
+    printf("\x1b[16;6HSLIDE %13lu", results->scoreSlide);
+
+    // Show the total score at the bottom
+    printf("\x1b[18;6HSCORE %13lu", results->scoreBase + results->scoreHold + results->scoreSlide);
+
+    uint16_t down = 0;
+    keysDown();
+
+    // Wait for the A button to be pressed
+    while (!(down & KEY_A))
+    {
+        scanKeys();
+        down = keysDown();
+        swiWaitForVBlank();
+    }
+
+    // When A is pressed, clear the screen and show the retry menu
+    oamClear(&oamSub, 0, 0);
+    oamUpdate(&oamSub);
+    consoleClear();
+    retryMenu();
 }

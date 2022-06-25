@@ -23,6 +23,23 @@
 #include <cstdint>
 #include <string>
 
+struct Results
+{
+    float clear = 0;
+    uint32_t total = 0;
+    uint32_t cools = 0;
+    uint32_t fines = 0;
+    uint32_t safes = 0;
+    uint32_t sads = 0;
+    uint32_t misses = 0;
+    uint32_t comboMax = 0;
+    uint32_t scoreBase = 0;
+    uint32_t scoreHold = 0;
+    uint32_t scoreSlide = 0;
+};
+
+extern uint16_t *initObjBitmap(OamState *oam, const unsigned int *bitmap, size_t bitmapLen, SpriteSize size);
+
 extern void gameInit();
 extern void gameLoop();
 extern void gameReset();
