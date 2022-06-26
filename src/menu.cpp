@@ -29,6 +29,8 @@
 #include "sad.h"
 #include "miss.h"
 
+#include "song_list.h"
+
 #include "menu.h"
 #include "audio.h"
 #include "database.h"
@@ -50,6 +52,9 @@ static uint16_t *menuGfx[10];
 static std::vector<std::string> charts[5];
 static size_t difficulty = 1;
 static size_t selection = 0;
+
+static int bg = 0;
+static uint16_t bgLine = 0;
 
 static void sortSongs()
 {
@@ -119,6 +124,26 @@ static void sortSongs()
     }
 }
 
+static void bgHBlank()
+{
+    if (REG_VCOUNT == 0)
+    {
+        // Reset the background at the start of the frame
+        bgTransform[bg]->dy = 0;
+        bgShow(bg);
+    }
+    else if (REG_VCOUNT == 172)
+    {
+        // Disable the background at the end of the list
+        bgHide(bg);
+    }
+    else if (REG_VCOUNT % (8 * 3) == 3)
+    {
+        // Adjust the background at every list item based on if it's selected
+        bgTransform[bg]->dy = ((REG_VCOUNT == bgLine) ? 4 : (8 * 3 + 4)) << 8;
+    }
+}
+
 void menuInit()
 {
     // Scan chart files (.dsc) and build song ID lists for each difficulty
@@ -152,6 +177,14 @@ void menuInit()
     menuGfx[2] = initObjBitmap(&oamSub, safeBitmap, safeBitmapLen, SpriteSize_32x8);
     menuGfx[3] = initObjBitmap(&oamSub, sadBitmap,  sadBitmapLen,  SpriteSize_32x8);
     menuGfx[4] = initObjBitmap(&oamSub, missBitmap, missBitmapLen, SpriteSize_32x8);
+
+    // Prepare the song list background
+    bg = bgInitSub(3, BgType_Bmp8, BgSize_B8_128x128, 7, 0);
+    dmaCopy(song_listBitmap, bgGetGfxPtr(bg), song_listBitmapLen);
+    dmaCopy(song_listPal, BG_PALETTE_SUB, 3 * sizeof(uint16_t));
+    bgSetRotateScale(bg, 0, 1 << 7, 1 << 8);
+    bgUpdate();
+    irqSet(IRQ_HBLANK, bgHBlank);
 }
 
 void songList()
@@ -172,11 +205,15 @@ void songList()
             swiWaitForVBlank();
     }
 
+    irqEnable(IRQ_HBLANK);
+
     uint8_t frames = 1;
 
     // Show the file browser
     while (true)
     {
+        consoleClear();
+
         // Calculate the offset to display the files from
         size_t offset = 0;
         if (charts[difficulty].size() > 7)
@@ -187,22 +224,34 @@ void songList()
                 offset = selection - 2;
         }
 
-        consoleClear();
+        // Define accent colors for each difficulty
+        static const uint16_t pal[] =
+        {
+            ARGB16(1,  0, 19, 23), // Easy
+            ARGB16(1,  3, 22,  1), // Normal
+            ARGB16(1, 26, 18,  0), // Hard
+            ARGB16(1, 27,  0,  4), // Extreme
+            ARGB16(1, 21,  2, 28)  // Extra Extreme
+        };
+
+        // Adjust the background to reflect the current selections
+        BG_PALETTE_SUB[2] = pal[difficulty];
+        bgLine = (selection - offset) * 8 * 3 + 3;
 
         // Display a section of songs and their data around the current selection
         for (size_t i = offset; i < offset + std::min(charts[difficulty].size(), 7U); i++)
         {
             SongData &data = songData[std::stoi(charts[difficulty][i])];
-            printf("\x1b[%d;0H%c%s", (i - offset) * 3 + 1, a[i == selection], data.name.substr(0, 26).c_str());
-            printf("\x1b[%d;28H%4.1f", (i - offset) * 3 + 1, ((float)((data.difficulty >> (difficulty * 5)) & 0x1F)) / 2);
-            printf("\x1b[%d;11H%07lupt", (i - offset) * 3 + 2, data.scores[difficulty]);
-            printf("\x1b[%d;21H%6.2f%%", (i - offset) * 3 + 2, data.clears[difficulty]);
+            printf("\x1b[30m\x1b[%d;%dH%s", (i - offset) * 3 + 1, (i == selection), data.name.substr(0, 26).c_str());
+            printf("\x1b[%d;%dH%4.1f", (i - offset) * 3 + 1, 27 + (i == selection), ((float)((data.difficulty >> (difficulty * 5)) & 0x1F)) / 2);
+            printf("\x1b[%d;%dH%07lupt", (i - offset) * 3 + 2, 10 + (i == selection), data.scores[difficulty]);
+            printf("\x1b[%d;%dH%6.2f%%", (i - offset) * 3 + 2, 20 + (i == selection), data.clears[difficulty]);
             static const std::string ranks[5] = { "", "(S)", "(G)", "(E)", "(P)", };
-            printf("\x1b[%d;29H%s", (i - offset) * 3 + 2, ranks[data.ranks[difficulty]].c_str());
+            printf("\x1b[%d;%dH%s", (i - offset) * 3 + 2, 28 + (i == selection), ranks[data.ranks[difficulty]].c_str());
         }
 
         // Display the difficulty tabs
-        printf("\x1b[22;0H%cEasy %cNormal %cHard %cExtrm %cExEx", a[difficulty == 0],
+        printf("\x1b[39m\x1b[23;0H%cEasy %cNormal %cHard %cExtrm %cExEx", a[difficulty == 0],
             a[difficulty == 1], a[difficulty == 2], a[difficulty == 3], a[difficulty == 4]);
 
         uint16_t down = 0;
@@ -232,10 +281,12 @@ void songList()
 
         if (down & KEY_A)
         {
-            // Select the current file and proceed to load it
+            // Select the current song and close the menu
             if (!charts[difficulty].empty())
             {
                 consoleClear();
+                bgHide(bg);
+                irqDisable(IRQ_HBLANK);
                 break;
             }
         }
