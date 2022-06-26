@@ -38,12 +38,17 @@ struct SongData
             uint32_t diffExEx : 5;
         };
 
-        uint32_t difficulty;
+        uint32_t difficulty = 0;
     };
+
+    uint32_t scores[5] = {};
+    float clears[5] = {};
+    uint8_t ranks[5] = {};
 };
 
 extern SongData songData[1000];
 
 extern void databaseInit();
+extern void writeScores();
 
 #endif // DATABASE_H

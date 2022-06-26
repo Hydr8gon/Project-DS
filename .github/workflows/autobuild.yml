@@ -64,6 +64,7 @@ jobs:
     - name: Package artifacts
       run: |
         mkdir project-ds
+        mkdir project-ds/db
         mkdir project-ds/dsc
         mkdir project-ds/ogg
         mkdir project-ds/pcm

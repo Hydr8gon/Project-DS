@@ -179,22 +179,26 @@ void songList()
     {
         // Calculate the offset to display the files from
         size_t offset = 0;
-        if (charts[difficulty].size() > 21)
+        if (charts[difficulty].size() > 7)
         {
-            if (selection >= charts[difficulty].size() - 10)
-                offset = charts[difficulty].size() - 21;
-            else if (selection > 10)
-                offset = selection - 10;
+            if (selection >= charts[difficulty].size() - 4)
+                offset = charts[difficulty].size() - 7;
+            else if (selection > 2)
+                offset = selection - 2;
         }
 
         consoleClear();
 
-        // Display a section of songs around the current selection
-        for (size_t i = offset; i < offset + std::min(charts[difficulty].size(), 21U); i++)
+        // Display a section of songs and their data around the current selection
+        for (size_t i = offset; i < offset + std::min(charts[difficulty].size(), 7U); i++)
         {
             SongData &data = songData[std::stoi(charts[difficulty][i])];
-            printf("\x1b[%d;0H%c%s\n", i - offset, a[i == selection], data.name.substr(0, 26).c_str());
-            printf("\x1b[%d;28H%4.1f\n", i - offset, ((float)((data.difficulty >> (difficulty * 5)) & 0x1F)) / 2);
+            printf("\x1b[%d;0H%c%s", (i - offset) * 3 + 1, a[i == selection], data.name.substr(0, 26).c_str());
+            printf("\x1b[%d;28H%4.1f", (i - offset) * 3 + 1, ((float)((data.difficulty >> (difficulty * 5)) & 0x1F)) / 2);
+            printf("\x1b[%d;11H%07lupt", (i - offset) * 3 + 2, data.scores[difficulty]);
+            printf("\x1b[%d;21H%6.2f%%", (i - offset) * 3 + 2, data.clears[difficulty]);
+            static const std::string ranks[5] = { "", "(S)", "(G)", "(E)", "(P)", };
+            printf("\x1b[%d;29H%s", (i - offset) * 3 + 2, ranks[data.ranks[difficulty]].c_str());
         }
 
         // Display the difficulty tabs
@@ -382,28 +386,34 @@ void resultsScreen(Results *results, bool fail)
     };
 
     // Assign a performance rank based on the results, and show it
+    uint8_t rank;
     if (results->comboMax == results->total)
     {
+        rank = 4;
         printf("\x1b[6;13HCLEAR!");
         printf("\x1b[7;6HPERFECT   %9.02f%%", results->clear);
     }
     else if (fail || results->clear < percents[difficulty][0])
     {
+        rank = 0;
         printf("\x1b[6;10HNOT CLEAR...");
         printf("\x1b[7;6HDROPxOUT  %9.02f%%", results->clear);
     }
     else if (results->clear < percents[difficulty][1])
     {
+        rank = 1;
         printf("\x1b[6;13HCLEAR!");
         printf("\x1b[7;6HSTANDARD  %9.02f%%", results->clear);
     }
     else if (results->clear < percents[difficulty][2])
     {
+        rank = 2;
         printf("\x1b[6;13HCLEAR!");
         printf("\x1b[7;6HGREAT     %9.02f%%", results->clear);
     }
     else
     {
+        rank = 3;
         printf("\x1b[6;13HCLEAR!");
         printf("\x1b[7;6HEXCELLENT %9.02f%%", results->clear);
     }
@@ -427,7 +437,19 @@ void resultsScreen(Results *results, bool fail)
     printf("\x1b[16;6HSLIDE %13lu", results->scoreSlide);
 
     // Show the total score at the bottom
-    printf("\x1b[18;6HSCORE %13lu", results->scoreBase + results->scoreHold + results->scoreSlide);
+    uint32_t score = results->scoreBase + results->scoreHold + results->scoreSlide;
+    printf("\x1b[18;6HSCORE %13lu", score);
+
+    // Update the saved scores if any records were broken
+    bool update = false;
+    if ((update = score > data.scores[difficulty]))
+        data.scores[difficulty] = score;
+    if ((update = results->clear > data.clears[difficulty]))
+        data.clears[difficulty] = results->clear;
+    if ((update = rank > data.ranks[difficulty]))
+        data.ranks[difficulty] = rank;
+    if (update)
+        writeScores();
 
     uint16_t down = 0;
     keysDown();

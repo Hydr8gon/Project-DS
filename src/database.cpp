@@ -24,6 +24,15 @@
 
 #include "database.h"
 
+static const std::string diffs[] =
+{
+    "easy.0.",
+    "normal.0.",
+    "hard.0.",
+    "extreme.0.",
+    "extreme.1."
+};
+
 SongData songData[1000];
 
 static void formatString(std::string &string)
@@ -55,11 +64,11 @@ void databaseInit()
     }
 
     // Scan database files (.txt) for English song information
-    if (DIR *dir = opendir("/project-ds"))
+    if (DIR *dir = opendir("/project-ds/db"))
     {
         while (dirent *entry = readdir(dir))
         {
-            std::string name = (std::string)"/project-ds/" + entry->d_name;
+            std::string name = (std::string)"/project-ds/db/" + entry->d_name;
             if (name.substr(name.length() - 4) == ".txt")
             {
                 if (FILE *file = fopen(name.c_str(), "r"))
@@ -120,5 +129,54 @@ void databaseInit()
         }
 
         closedir(dir);
+    }
+
+    // Load saved score information from file if it exists
+    if (FILE *file = fopen("/project-ds/scores.txt", "r"))
+    {
+        char line[512];
+        while (fgets(line, 512, file))
+        {
+            std::string str = line;
+
+            // Parse the difficulty index from the line
+            uint8_t diff;
+            for (diff = 0; diff < 4; diff++)
+                if (str.substr(7, diffs[diff].length()) == diffs[diff])
+                    break;
+
+            // Set the appropriate value based on the entry
+            if (str.length() > 23 && str.substr(17, 6) == "score=")
+                songData[std::stoi(str.substr(3, 3))].scores[diff] = std::stoi(str.substr(23));
+            else if (str.length() > 23 && str.substr(17, 6) == "clear=")
+                songData[std::stoi(str.substr(3, 3))].clears[diff] = std::stof(str.substr(23));
+            else if (str.length() > 22 && str.substr(17, 5) == "rank=")
+                songData[std::stoi(str.substr(3, 3))].ranks[diff] = std::stoi(str.substr(22));
+        }
+
+        fclose(file);
+    }
+}
+
+void writeScores()
+{
+    // Write saved score information to file
+    if (FILE *file = fopen("/project-ds/scores.txt", "w"))
+    {
+        for (size_t i = 0; i < 1000; i++)
+        {
+            for (uint8_t diff = 0; diff < 5; diff++)
+            {
+                // Add an entry for each non-zero score value
+                if (songData[i].scores[diff])
+                    fprintf(file, "pv_%03u.%sscore=%lu\n", i, diffs[diff].c_str(), songData[i].scores[diff]);
+                if (songData[i].clears[diff])
+                    fprintf(file, "pv_%03u.%sclear=%.2f\n", i, diffs[diff].c_str(), songData[i].clears[diff]);
+                if (songData[i].ranks[diff])
+                    fprintf(file, "pv_%03u.%srank=%u\n", i, diffs[diff].c_str(), songData[i].ranks[diff]);
+            }
+        }
+
+        fclose(file);
     }
 }
