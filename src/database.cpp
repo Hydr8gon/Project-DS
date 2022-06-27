@@ -89,7 +89,10 @@ void databaseInit()
                             // Set a song lyric from the database
                             std::string lyric = str.substr(20);
                             formatString(lyric);
-                            songData[std::stoi(str.substr(3, 3))].lyrics[std::stoi(str.substr(16, 3))] = lyric;
+                            std::vector<std::string> &lyrics = songData[std::stoi(str.substr(3, 3))].lyrics;
+                            size_t index = std::stoi(str.substr(16, 3));
+                            lyrics.resize(index + 1);
+                            lyrics[index] = lyric;
                         }
                         else if (str.length() > 41 && str.substr(7, 24) == "difficulty.easy.0.level=")
                         {

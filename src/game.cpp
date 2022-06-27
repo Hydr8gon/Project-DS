@@ -394,11 +394,11 @@ static void updateChart()
             case 0x18: // Lyric
             {
                 clearLyrics();
+                std::vector<std::string> &lyrics = songData[std::stoi(songName.substr(19, 3))].lyrics;
 
                 // Get a lyric from the song database and display it on the bottom screen
-                if (chart[counter + 1] < 128)
+                if (chart[counter + 1] < lyrics.size())
                 {
-                    std::string *lyrics = songData[std::stoi(songName.substr(19, 3))].lyrics;
                     std::string &lyric = lyrics[chart[counter + 1]];
 
                     if (lyric.length() > 32)
