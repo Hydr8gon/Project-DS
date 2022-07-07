@@ -38,7 +38,7 @@ int main()
     {
         std::string name = entry->d_name;
         if (name.find(".ogg", name.length() - 4) != std::string::npos)
-            files.push_back(name);
+            files.push_back(name.substr(0, name.length() - 4));
     }
 
     // Ensure there are files present
@@ -64,8 +64,8 @@ int main()
     for (size_t k = 0; k < files.size(); k++)
     {
         // Infer names for all the files that might need to be accessed
-        std::string oggName = "ogg/" + files[k].substr(0, 6) + ".ogg";
-        std::string pcmName = "pcm/" + files[k].substr(0, 6) + ".pcm";
+        std::string oggName = "ogg/" + files[k] + ".ogg";
+        std::string pcmName = "pcm/" + files[k] + ".pcm";
 
         // Attempt to load an OGG file for conversion
         if (FILE *oggFile = fopen(oggName.c_str(), "rb"))
@@ -145,15 +145,18 @@ int main()
                     while (int samples = vorbis_synthesis_pcmout(&vd, &pcm))
                     {
                         // Convert floats and combine channels to produce stereo PCM16
-                        int16_t convbuffer[2048];
+                        int16_t conv[2048] = {};
                         for (int j = 0; j < samples; j++)
                         {
-                            convbuffer[j * 2 + 0] = (pcm[0][j] + pcm[2][j]) * 32767.0f;
-                            convbuffer[j * 2 + 1] = (pcm[1][j] + pcm[3][j]) * 32767.0f;
+                            for (int c = 0; c < vi.channels; c += 2)
+                            {
+                                conv[j * 2 + 0] += pcm[c + 0][j] * 32767.0f;
+                                conv[j * 2 + 1] += pcm[c + 1][j] * 32767.0f;
+                            }
                         }
 
                         // Write the converted data to file
-                        fwrite(convbuffer, sizeof(int16_t), samples * 2, pcmFile);
+                        fwrite(conv, sizeof(int16_t), samples * 2, pcmFile);
                         vorbis_synthesis_read(&vd, samples);
                     }
                 }

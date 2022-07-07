@@ -151,11 +151,14 @@ bool convertSong(std::string &src, std::string &dst)
                 while (int samples = vorbis_synthesis_pcmout(&vd, &pcm))
                 {
                     // Convert floats and combine channels to produce stereo PCM16
-                    int16_t conv[2048];
+                    int16_t conv[2048] = {};
                     for (int j = 0; j < samples; j++)
                     {
-                        conv[j * 2 + 0] = (pcm[0][j] + pcm[2][j]) * 32767.0f;
-                        conv[j * 2 + 1] = (pcm[1][j] + pcm[3][j]) * 32767.0f;
+                        for (int c = 0; c < vi.channels; c += 2)
+                        {
+                            conv[j * 2 + 0] += pcm[c + 0][j] * 32767.0f;
+                            conv[j * 2 + 1] += pcm[c + 1][j] * 32767.0f;
+                        }
                     }
 
                     // Write the converted data to file
