@@ -143,18 +143,18 @@ void databaseInit()
             std::string str = line;
 
             // Parse the difficulty index from the line
-            uint8_t diff;
+            uint8_t diff, len;
             for (diff = 0; diff < 4; diff++)
-                if (str.substr(7, diffs[diff].length()) == diffs[diff])
+                if (str.substr(7, (len = diffs[diff].length())) == diffs[diff])
                     break;
 
             // Set the appropriate value based on the entry
-            if (str.length() > 23 && str.substr(17, 6) == "score=")
-                songData[std::stoi(str.substr(3, 3))].scores[diff] = std::stoi(str.substr(23));
-            else if (str.length() > 23 && str.substr(17, 6) == "clear=")
-                songData[std::stoi(str.substr(3, 3))].clears[diff] = std::stof(str.substr(23));
-            else if (str.length() > 22 && str.substr(17, 5) == "rank=")
-                songData[std::stoi(str.substr(3, 3))].ranks[diff] = std::stoi(str.substr(22));
+            if (str.length() > 13 + len && str.substr(7 + len, 6) == "score=")
+                songData[std::stoi(str.substr(3, 3))].scores[diff] = std::stoi(str.substr(13 + len));
+            else if (str.length() > 13 + len && str.substr(7 + len, 6) == "clear=")
+                songData[std::stoi(str.substr(3, 3))].clears[diff] = std::stof(str.substr(13 + len));
+            else if (str.length() > 12 + len && str.substr(7 + len, 5) == "rank=")
+                songData[std::stoi(str.substr(3, 3))].ranks[diff] = std::stoi(str.substr(12 + len));
         }
 
         fclose(file);
