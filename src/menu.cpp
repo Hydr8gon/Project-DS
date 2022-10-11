@@ -493,12 +493,12 @@ void resultsScreen(Results *results, bool fail)
 
     // Update the saved scores if any records were broken
     bool update = false;
-    if ((update = score > data.scores[difficulty]))
-        data.scores[difficulty] = score;
-    if ((update = results->clear > data.clears[difficulty]))
-        data.clears[difficulty] = results->clear;
-    if ((update = rank > data.ranks[difficulty]))
-        data.ranks[difficulty] = rank;
+    if (score > data.scores[difficulty])
+        update = true, data.scores[difficulty] = score;
+    if (results->clear > data.clears[difficulty])
+        update = true, data.clears[difficulty] = results->clear;
+    if (rank > data.ranks[difficulty])
+        update = true, data.ranks[difficulty] = rank;
     if (update)
         writeScores();
 
