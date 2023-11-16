@@ -196,6 +196,7 @@ void songList()
     // Ensure there are files present
     if (charts[0].empty() && charts[1].empty() && charts[2].empty() && charts[3].empty() && charts[4].empty())
     {
+        bgHide(bg);
         consoleClear();
         printf("No DSC files found.\n");
         printf("Place them in '/project-ds/dsc'.\n");
@@ -246,8 +247,8 @@ void songList()
             printf("\x1b[%d;%dH%4.1f", (i - offset) * 3 + 1, 27 + (i == selection), ((float)((data.difficulty >> (difficulty * 5)) & 0x1F)) / 2);
             printf("\x1b[%d;%dH%07lupt", (i - offset) * 3 + 2, 10 + (i == selection), data.scores[difficulty]);
             printf("\x1b[%d;%dH%6.2f%%", (i - offset) * 3 + 2, 20 + (i == selection), data.clears[difficulty]);
-            static const std::string ranks[5] = { "", "(S)", "(G)", "(E)", "(P)", };
-            printf("\x1b[%d;%dH%s", (i - offset) * 3 + 2, 28 + (i == selection), ranks[data.ranks[difficulty]].c_str());
+            static const char *ranks[5] = { "", "(S)", "(G)", "(E)", "(P)" };
+            printf("\x1b[%d;%dH%s", (i - offset) * 3 + 2, 28 + (i == selection), ranks[data.ranks[difficulty]]);
         }
 
         // Display the difficulty tabs
