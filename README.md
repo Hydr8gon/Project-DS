@@ -13,6 +13,9 @@ Converting songs on the DS takes a long time, so a tool to batch convert them on
 ### Compiling
 To build Project DS manually, you first need to install [devkitPro](https://devkitpro.org/wiki/Getting_Started) and the `nds-dev` package. After that, you should be able to simply run `make` in the project root directory to compile. To compile the converter, run `make -f Makefile.conv` instead.
 
+### Contributing
+While I appreciate anyone who wants to contribute, my goal with this project is to challenge myself and not to review code. I feel guilty rejecting a change that someone spent time on, but I also don't feel great accepting changes that I didn't ask for. For this reason, I've decided to stop accepting pull requests. You're of course still free to do anything with the code that's allowed by the license, but if you submit a pull request it will likely be ignored. I hope this is understandable!
+
 ### References
 * [Open PD Script Editor](https://notabug.org/thatrandomlurker/Open-PD-Script-Editor) - Opcode definitions and parameter counts
 * [Project DIVA Arcade atwiki](https://w.atwiki.jp/projectdiva_ac/pages/128.html) - Detailed scoring information
