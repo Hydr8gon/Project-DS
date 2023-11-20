@@ -17,6 +17,7 @@
     along with Project DS. If not, see <https://www.gnu.org/licenses/>.
 */
 
+#include <cstring>
 #include <maxmod9.h>
 #include <nds.h>
 
@@ -26,9 +27,21 @@
 
 static mm_stream stream;
 static FILE *song = nullptr;
+static int lagConfig = 0;
+static int songWait = 0;
 
 static mm_word audioCallback(mm_word length, mm_addr dest, mm_stream_formats format)
 {
+    // Prepend the stream with empty data if delayed
+    if (songWait > 0)
+    {
+        songWait -= length * 4;
+        memset(dest, 0, length * 4);
+        if (songWait >= 0) return length;
+        fread(dest + length * 4 + songWait, sizeof(int16_t), -songWait / 2, song);
+        return length;
+    }
+
     // Load more PCM samples from file
     fread(dest, sizeof(int16_t), length * 2, song);
     return length;
@@ -45,11 +58,21 @@ void audioInit()
     stream.manual        = true;
 }
 
+void setLagConfig(int ms)
+{
+    // Calculate a byte offset from a lag config in milliseconds
+    lagConfig = (44100 * 2 * ms / 1000) & ~0x3;
+}
+
 void playSong(std::string &name)
 {
-    // Open and play a PCM file if it exists
+    // Open and play a PCM file if it exists, skipping ahead if early
     if (!song && (song = fopen(name.c_str(), "rb")))
+    {
+        if ((songWait = lagConfig) < 0)
+            fseek(song, -lagConfig, SEEK_SET);
         mmStreamOpen(&stream);
+    }
 }
 
 void updateSong()

@@ -23,6 +23,7 @@
 #include <string>
 
 extern void audioInit();
+extern void setLagConfig(int ms);
 
 extern void playSong(std::string &name);
 extern void updateSong();

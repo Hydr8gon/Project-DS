@@ -52,6 +52,7 @@ static uint16_t *menuGfx[10];
 static std::vector<std::string> charts[5];
 static size_t difficulty = 1;
 static size_t selection = 0;
+static int lagConfigMs = 0;
 
 static int bg = 0;
 static uint16_t bgLine = 0;
@@ -357,20 +358,22 @@ void retryMenu()
     while (true)
     {
         // Draw the menu items
-        printf("\x1b[10;13H%cRetry", a[selection == 0]);
-        printf("\x1b[12;6H%cReturn to Song List", a[selection == 1]);
+        printf("\x1b[9;13H%cRetry", a[selection == 0]);
+        printf("\x1b[11;10H%cLag Config", a[selection == 1]);
+        printf((selection == 1) ? "\x1b[11;22H<%05d>" : "\x1b[11;22H       ", lagConfigMs);
+        printf("\x1b[13;6H%cReturn to Song List", a[selection == 2]);
 
         uint16_t down = 0;
         uint16_t held = 0;
         keysDown();
 
         // Wait for button input
-        while (!(down & KEY_A) && !(held & (KEY_UP | KEY_DOWN)))
+        while (!(down & KEY_A) && !(held & (KEY_UP | KEY_DOWN | KEY_LEFT | KEY_RIGHT)))
         {
             scanKeys();
             down = keysDown();
             held = keysHeld();
-            if (!(held & (KEY_UP | KEY_DOWN)))
+            if (!(held & (KEY_UP | KEY_DOWN | KEY_LEFT | KEY_RIGHT)))
                 frames = 0;
             swiWaitForVBlank();
         }
@@ -380,7 +383,10 @@ void retryMenu()
             // Handle the selected item
             switch (selection)
             {
-                case 1: // Return to Song List
+                case 1: // Lag Config
+                    continue;
+
+                case 2: // Return to Song List
                     songList();
                 case 0: // Retry
                     gameReset();
@@ -395,13 +401,25 @@ void retryMenu()
         {
             // Decrement the current selection with wraparound, continuously after 30 frames
             if ((frames > 30 || frames++ == 0) && selection-- == 0)
-                selection = 2 - 1;
+                selection = 3 - 1;
         }
         else if (held & KEY_DOWN)
         {
             // Increment the current selection with wraparound, continuously after 30 frames
-            if ((frames > 30 || frames++ == 0) && ++selection == 2)
+            if ((frames > 30 || frames++ == 0) && ++selection == 3)
                 selection = 0;
+        }
+        else if (selection == 1 && (held & KEY_LEFT))
+        {
+            // Decrement the current lag config, continuously after 30 frames
+            if ((frames > 30 || frames++ == 0) && lagConfigMs > -1000)
+                setLagConfig(--lagConfigMs);
+        }
+        else if (selection == 1 && (held & KEY_RIGHT))
+        {
+            // Increment the current lag config, continuously after 30 frames
+            if ((frames > 30 || frames++ == 0) && lagConfigMs < 1000)
+                setLagConfig(++lagConfigMs);
         }
     }
 }
@@ -415,7 +433,7 @@ void resultsScreen(Results *results, bool fail)
     oamUpdate(&oamSub);
     consoleClear();
 
-    static std::string diffs[5] =
+    const std::string diffs[5] =
     {
         "EASY",
         "NORMAL",
