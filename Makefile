@@ -24,6 +24,7 @@ DATA     := data
 GRAPHICS := gfx
 
 # These set the information text in the nds file
+GAME_ICON      := ../icon.bmp
 GAME_TITLE     := Project DS
 GAME_SUBTITLE1 := Hydr8gon
 GAME_SUBTITLE2 := 
