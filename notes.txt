@@ -198,3 +198,9 @@ varying adjustments based on timing as well.
  Safe |   0   |  -9
  Sad  | -10   | -15
  Miss | -20   | -20
+
+
+Other References
+
+Source for opcode names and parameter counts: https://notabug.org/thatrandomlurker/Open-PD-Script-Editor
+Detailed scoring information: https://w.atwiki.jp/projectdiva_ac/pages/128.html

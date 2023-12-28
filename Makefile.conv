@@ -1,17 +1,17 @@
-NAME     := converter
-BUILD    := build-conv
-SOURCES  := src-conv libogg/src vorbis/lib
-ARGS     := -O2
-INCLUDES := -Ilibogg/include -Ivorbis/include -Ivorbis/lib
+NAME := converter
+BUILD := build-conv
+SRCS := src-conv libogg/src vorbis/lib
+ARGS := -O2
+INCS := -Ilibogg/include -Ivorbis/include -Ivorbis/lib
 
 ifeq ($(OS),Windows_NT)
   ARGS += -static -DWINDOWS
 endif
 
-CFILES   := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.c))
-CPPFILES := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.cpp))
-HFILES   := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.h))
-OFILES   := $(patsubst %.c,$(BUILD)/%.o,$(CFILES)) $(patsubst %.cpp,$(BUILD)/%.o,$(CPPFILES))
+CFILES := $(foreach dir,$(SRCS),$(wildcard $(dir)/*.c))
+CPPFILES := $(foreach dir,$(SRCS),$(wildcard $(dir)/*.cpp))
+HFILES := $(foreach dir,$(SRCS),$(wildcard $(dir)/*.h))
+OFILES := $(patsubst %.c,$(BUILD)/%.o,$(CFILES)) $(patsubst %.cpp,$(BUILD)/%.o,$(CPPFILES))
 
 all: $(NAME)
 
@@ -19,13 +19,13 @@ $(NAME): $(OFILES)
 	g++ -o $@ $(ARGS) $^
 
 $(BUILD)/%.o: %.c $(HFILES) $(BUILD)
-	gcc -c -o $@ $(ARGS) $(INCLUDES) $<
+	gcc -c -o $@ $(ARGS) $(INCS) $<
 
 $(BUILD)/%.o: %.cpp $(HFILES) $(BUILD)
-	g++ -c -o $@ $(ARGS) $(INCLUDES) $<
+	g++ -c -o $@ $(ARGS) $(INCS) $<
 
 $(BUILD):
-	for dir in $(SOURCES); \
+	for dir in $(SRCS); \
 	do \
 	mkdir -p $(BUILD)/$$dir; \
 	done
