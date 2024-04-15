@@ -177,7 +177,7 @@ bool convertSong(std::string &src, std::string &dst)
                     int16_t conv[2048] = {};
                     for (int j = 0; j < samples; j++)
                     {
-                        for (int c = 0; c < vi.channels; c += 2)
+                        for (int c = 0; c < std::min(4, vi.channels); c += 2)
                         {
                             conv[j * 2 + 0] += pcm[c + 0][j] * 32767.0f;
                             conv[j * 2 + 1] += pcm[c + 1][j] * 32767.0f;

@@ -70,20 +70,15 @@ int main()
         // Attempt to load an OGG file for conversion
         if (FILE *oggFile = fopen(oggName.c_str(), "rb"))
         {
-            ogg_sync_state   oy;
+            ogg_sync_state oy;
             ogg_stream_state os;
-            ogg_page         og;
-            ogg_packet       op;
+            ogg_page og;
+            ogg_packet op;
 
-            vorbis_info      vi;
-            vorbis_comment   vc;
+            vorbis_info vi;
+            vorbis_comment vc;
             vorbis_dsp_state vd;
-            vorbis_block     vb;
-
-            // Get the file size for progress tracking
-            fseek(oggFile, 0, SEEK_END);
-            size_t sizeOgg = ftell(oggFile);
-            fseek(oggFile, 0, SEEK_SET);
+            vorbis_block vb;
 
             // Read the first block from the OGG file
             ogg_sync_init(&oy);
@@ -148,7 +143,7 @@ int main()
                         int16_t conv[2048] = {};
                         for (int j = 0; j < samples; j++)
                         {
-                            for (int c = 0; c < vi.channels; c += 2)
+                            for (int c = 0; c < std::min(4, vi.channels); c += 2)
                             {
                                 conv[j * 2 + 0] += pcm[c + 0][j] * 32767.0f;
                                 conv[j * 2 + 1] += pcm[c + 1][j] * 32767.0f;
