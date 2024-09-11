@@ -25,7 +25,7 @@ struct Results;
 extern void menuInit();
 
 extern void songList();
-extern void retryMenu();
+extern void retryMenu(bool pause = false);
 extern void resultsScreen(Results *results, bool fail);
 
 #endif // MENU_H

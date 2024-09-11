@@ -348,20 +348,20 @@ void songList()
     loadChart(dscName, pcmName, difficulty, retry);
 }
 
-void retryMenu()
+void retryMenu(bool pause)
 {
     stopSong();
-
-    size_t selection = 0;
+    uint32_t selection = !pause;
     uint8_t frames = 1;
 
     while (true)
     {
         // Draw the menu items
-        printf("\x1b[9;13H%cRetry", a[selection == 0]);
-        printf("\x1b[11;10H%cLag Config", a[selection == 1]);
-        printf((selection == 1) ? "\x1b[11;22H<%05d>" : "\x1b[11;22H       ", lagConfigMs);
-        printf("\x1b[13;6H%cReturn to Song List", a[selection == 2]);
+        if (pause) printf("\x1b[8;10H%cResume Game", a[selection == 0]);
+        printf("\x1b[10;13H%cRetry", a[selection == 1]);
+        printf("\x1b[12;10H%cLag Config", a[selection == 2]);
+        printf((selection == 2) ? "\x1b[12;22H<%05d>" : "\x1b[12;22H       ", lagConfigMs);
+        printf("\x1b[14;6H%cReturn to Song List", a[selection == 3]);
 
         uint16_t down = 0;
         uint16_t held = 0;
@@ -383,12 +383,16 @@ void retryMenu()
             // Handle the selected item
             switch (selection)
             {
-                case 1: // Lag Config
+                case 0: // Resume Game
+                    resumeSong();
+                    break;
+
+                case 2: // Lag Config
                     continue;
 
-                case 2: // Return to Song List
+                case 3: // Return to Song List
                     songList();
-                case 0: // Retry
+                case 1: // Retry
                     gameReset();
                     break;
             }
@@ -400,26 +404,38 @@ void retryMenu()
         else if (held & KEY_UP)
         {
             // Decrement the current selection with wraparound, continuously after 30 frames
-            if ((frames > 30 || frames++ == 0) && selection-- == 0)
-                selection = 3 - 1;
+            if ((frames > 30 || frames++ == 0) && selection-- == !pause)
+                selection = 3;
         }
         else if (held & KEY_DOWN)
         {
             // Increment the current selection with wraparound, continuously after 30 frames
-            if ((frames > 30 || frames++ == 0) && ++selection == 3)
-                selection = 0;
+            if ((frames > 30 || frames++ == 0) && ++selection == 4)
+                selection = !pause;
         }
-        else if (selection == 1 && (held & KEY_LEFT))
+        else if (selection == 2 && (held & KEY_LEFT) && ((frames > 30 || frames++ == 0) && lagConfigMs > -1000))
         {
             // Decrement the current lag config, continuously after 30 frames
-            if ((frames > 30 || frames++ == 0) && lagConfigMs > -1000)
-                setLagConfig(--lagConfigMs);
+            setLagConfig(--lagConfigMs);
+
+            // Hide and disable the resume option if lag is adjusted
+            if (pause)
+            {
+                printf("\x1b[8;10H            ");
+                pause = false;
+            }
         }
-        else if (selection == 1 && (held & KEY_RIGHT))
+        else if (selection == 2 && (held & KEY_RIGHT) && ((frames > 30 || frames++ == 0) && lagConfigMs < 1000))
         {
             // Increment the current lag config, continuously after 30 frames
-            if ((frames > 30 || frames++ == 0) && lagConfigMs < 1000)
-                setLagConfig(++lagConfigMs);
+            setLagConfig(++lagConfigMs);
+
+            // Hide and disable the resume option if lag is adjusted
+            if (pause)
+            {
+                printf("\x1b[8;10H            ");
+                pause = false;
+            }
         }
     }
 }

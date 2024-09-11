@@ -882,7 +882,7 @@ void gameLoop()
         if (down & KEY_START)
         {
             clearLyrics();
-            retryMenu();
+            retryMenu(true);
         }
         else if (life == 0 || (finished && notes.empty()))
         {

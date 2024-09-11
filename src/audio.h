@@ -26,6 +26,7 @@ extern void audioInit();
 extern void setLagConfig(int ms);
 
 extern void playSong(std::string &name);
+extern void resumeSong();
 extern void updateSong();
 extern void stopSong();
 
