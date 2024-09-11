@@ -16,7 +16,7 @@ jobs:
     - name: Compile
       run: make -j$(nproc)
     - name: Upload
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: rom
         path: project-ds.nds
@@ -42,7 +42,7 @@ jobs:
       shell: msys2 {0}
       working-directory: ${{ github.workspace }}
     - name: Upload
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: converter
         path: converter.exe
@@ -60,7 +60,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Get artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
     - name: Package artifacts
       run: |
         mkdir project-ds
