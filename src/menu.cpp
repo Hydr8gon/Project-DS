@@ -241,7 +241,7 @@ void songList()
 
         // Adjust the background to reflect the current selections
         BG_PALETTE_SUB[2] = pal[difficulty];
-        bgLine = (selection - offset) * 8 * 3 + 3;
+        bgLine = charts[difficulty].empty() ? -1 : ((selection - offset) * 8 * 3 + 3);
 
         // Display a section of songs and their data around the current selection
         for (size_t i = offset; i < offset + std::min(charts[difficulty].size(), 7U); i++)
@@ -274,8 +274,11 @@ void songList()
             if (!(held & (KEY_UP | KEY_DOWN)) && frames > 0)
             {
                 frames = 0;
-                std::string name = "/project-ds/pcm/pv_" + charts[difficulty][selection] + ".pcm";
-                playSong(name);
+                if (!charts[difficulty].empty())
+                {
+                    std::string name = "/project-ds/pcm/pv_" + charts[difficulty][selection] + ".pcm";
+                    playSong(name);
+                }
             }
 
             updateSong();
